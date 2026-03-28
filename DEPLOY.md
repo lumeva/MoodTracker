@@ -2,7 +2,7 @@
 
 本项目已经内置自动部署工作流：
 
-- `.github/workflows/deploy-pages.yml`
+- `.github/workflows/static.yml`
 
 你只需要把代码推到 GitHub 的 `main` 分支，GitHub 会自动发布网页。
 

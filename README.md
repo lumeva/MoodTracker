@@ -47,7 +47,7 @@ http://电脑局域网IPv4:4173/index.html
 
 已提供 GitHub Pages 自动部署工作流：
 
-- [deploy-pages.yml](D:\MoodTracker\.github\workflows\deploy-pages.yml)
+- [static.yml](D:\MoodTracker\.github\workflows\static.yml)
 
 详细步骤见：
 
