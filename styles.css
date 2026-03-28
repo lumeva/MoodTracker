@@ -124,7 +124,7 @@ input[type="range"] {
 
 .topbar {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: flex-start;
   gap: 12px;
   margin-bottom: 18px;
@@ -338,9 +338,18 @@ h3 {
 
 .chip.selected,
 .filter-chip.selected {
+  background: var(--secondary);
   color: #fff;
   border-color: transparent;
   box-shadow: 0 10px 18px rgba(38, 38, 38, 0.12);
+}
+
+.home-quick-card {
+  order: 1;
+}
+
+.home-hero-card {
+  order: 2;
 }
 
 .project-meta {
@@ -561,10 +570,12 @@ h3 {
 .step-actions {
   margin-top: 18px;
   justify-content: space-between;
+  flex-wrap: wrap;
 }
 
 .step-actions > * {
   flex: 1;
+  min-width: 120px;
 }
 
 .hidden {
@@ -768,6 +779,29 @@ h3 {
   margin-top: 12px;
 }
 
+.custom-tag-editor {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.64);
+  display: grid;
+  gap: 10px;
+}
+
+.tag-entry-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.save-row {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.1);
+}
+
 .switch-row {
   margin-top: 14px;
   padding: 14px 16px;
@@ -901,6 +935,10 @@ h3 {
   .button-row,
   .chart-row {
     flex-direction: column;
+  }
+
+  .tag-entry-row {
+    grid-template-columns: 1fr;
   }
 
   .stepper {

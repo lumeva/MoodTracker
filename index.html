@@ -20,12 +20,11 @@
         <p class="eyebrow">Mood Tracker</p>
         <h1>心绪记录</h1>
       </div>
-      <button class="ghost-button" id="reset-guided-btn" type="button">重置引导</button>
     </header>
 
     <main class="main-content">
       <section class="screen active" id="screen-home" aria-labelledby="home-title">
-        <div class="hero-card">
+        <div class="hero-card home-hero-card">
           <div>
             <p class="eyebrow">此刻记录</p>
             <h2 id="home-title">让记录发生在当下</h2>
@@ -49,7 +48,7 @@
           </div>
         </div>
 
-        <div class="card">
+        <div class="card home-quick-card">
           <div class="section-heading">
             <div>
               <p class="eyebrow">Quick Check-in</p>
@@ -61,6 +60,26 @@
             这次记录可以同时包含多个项目。你只需要点选标签，写一句话备注，就能保存。
           </p>
           <div id="quick-projects" class="project-grid"></div>
+
+          <div class="custom-tag-editor">
+            <p class="group-title">情绪可自由填写（情绪之轮只作为参考）</p>
+            <div class="tag-entry-row">
+              <input id="quick-emotion-input" type="text" placeholder="输入情绪，例如：伤、麻木、安心">
+              <input id="quick-emotion-color" type="color" value="#5f7fd1" aria-label="情绪标签颜色">
+              <button class="ghost-button" id="quick-add-emotion-tag" type="button">新增情绪标签</button>
+            </div>
+            <div id="quick-emotion-suggestions" class="chip-wrap"></div>
+          </div>
+
+          <div class="custom-tag-editor">
+            <p class="group-title">躯体感受可自由填写</p>
+            <div class="tag-entry-row">
+              <input id="quick-somatic-input" type="text" placeholder="输入躯体感受，例如：头皮发麻、肩膀很紧">
+              <input id="quick-somatic-color" type="color" value="#4b8fbb" aria-label="躯体标签颜色">
+              <button class="ghost-button" id="quick-add-somatic-tag" type="button">新增躯体标签</button>
+            </div>
+            <div id="quick-somatic-suggestions" class="chip-wrap"></div>
+          </div>
 
           <div class="form-block">
             <label class="field-label" for="quick-intensity">这次情绪波动强度</label>
@@ -79,7 +98,9 @@
             <textarea id="quick-note" rows="3" placeholder="例如：晚饭前突然开始胸口发紧，想到明天的事情很慌。"></textarea>
           </div>
 
-          <button class="primary-button" id="save-quick-btn" type="button">保存这次快速记录</button>
+          <div class="save-row">
+            <button class="primary-button" id="save-quick-btn" type="button">保存这次快速记录</button>
+          </div>
         </div>
 
         <div class="card">
@@ -110,15 +131,6 @@
           <div id="custom-project-list" class="custom-project-list"></div>
         </div>
 
-        <div class="card">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Recent</p>
-              <h3>最近记录</h3>
-            </div>
-          </div>
-          <div id="recent-records" class="record-list"></div>
-        </div>
       </section>
 
       <section class="screen" id="screen-guided" aria-labelledby="guided-title">
@@ -138,6 +150,7 @@
           <div class="stepper" id="guided-stepper"></div>
           <div id="guided-step-content" class="guided-content"></div>
           <div class="step-actions">
+            <button class="ghost-button" id="guided-reset-btn" type="button">清空本次引导</button>
             <button class="ghost-button" id="guided-prev-btn" type="button">上一步</button>
             <button class="secondary-button" id="guided-next-btn" type="button">下一步</button>
             <button class="primary-button hidden" id="guided-save-btn" type="button">保存引导记录</button>
@@ -208,12 +221,25 @@
         </div>
       </section>
 
-      <section class="screen" id="screen-export" aria-labelledby="export-title">
+      <section class="screen" id="screen-recent" aria-labelledby="recent-title">
+        <div class="card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Recent</p>
+              <h2 id="recent-title">最近记录</h2>
+            </div>
+          </div>
+          <p class="body-copy">这里会显示最近 50 条记录，方便快速回看。</p>
+          <div id="recent-records" class="record-list"></div>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-settings" aria-labelledby="settings-title">
         <div class="card">
           <div class="section-heading">
             <div>
               <p class="eyebrow">Export</p>
-              <h2 id="export-title">导出文字版记录</h2>
+              <h3>导出文字版记录</h3>
             </div>
             <span class="hint-tag">适合复制给 AI 做周报分析</span>
           </div>
@@ -238,12 +264,10 @@
           </div>
           <div class="form-block">
             <label class="field-label" for="export-preview">导出预览</label>
-            <textarea id="export-preview" rows="18" readonly placeholder="生成后会显示在这里。"></textarea>
+            <textarea id="export-preview" rows="14" readonly placeholder="生成后会显示在这里。"></textarea>
           </div>
         </div>
-      </section>
 
-      <section class="screen" id="screen-settings" aria-labelledby="settings-title">
         <div class="card">
           <div class="section-heading">
             <div>
@@ -346,8 +370,8 @@
       <button class="nav-button" type="button" data-screen="stats">
         <span>统计</span>
       </button>
-      <button class="nav-button" type="button" data-screen="export">
-        <span>导出</span>
+      <button class="nav-button" type="button" data-screen="recent">
+        <span>最近</span>
       </button>
       <button class="nav-button" type="button" data-screen="settings">
         <span>设置</span>

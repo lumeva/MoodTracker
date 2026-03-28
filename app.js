@@ -1,6 +1,16 @@
 (function () {
   const DATA = window.APP_DATA;
   const EMOTION_TAGS = flattenEmotionTags(DATA.emotionCategories);
+  if (!EMOTION_TAGS.some((tag) => tag.label === "伤心")) {
+    EMOTION_TAGS.push({
+      id: "sadness-伤心",
+      label: "伤心",
+      color: "#5585c0",
+      categoryId: "sadness",
+      categoryName: "悲伤",
+      groupLabel: "失落"
+    });
+  }
   const BUILTIN_PROJECTS = [
     {
       id: "emotion",
@@ -8,7 +18,8 @@
       type: "emotion",
       color: "#d96d4f",
       description: "用情绪之轮更细致地命名感受",
-      quickTagIds: DATA.quickEmotionIds
+      quickTagIds: DATA.quickEmotionIds,
+      tags: deepCopy(EMOTION_TAGS)
     },
     {
       id: "somatic",
@@ -60,9 +71,11 @@
   function cacheEls() {
     [
       "today-label", "current-slot-label", "weekly-count-label", "quick-projects", "quick-intensity",
-      "quick-intensity-label", "quick-note", "recent-records", "custom-project-form", "custom-project-name",
+      "quick-intensity-label", "quick-note", "quick-emotion-input", "quick-emotion-color", "quick-add-emotion-tag",
+      "quick-emotion-suggestions", "quick-somatic-input", "quick-somatic-color", "quick-add-somatic-tag",
+      "quick-somatic-suggestions", "recent-records", "custom-project-form", "custom-project-name",
       "custom-project-tags", "custom-project-color", "custom-project-list", "guided-slot-label", "guided-stepper",
-      "guided-step-content", "guided-prev-btn", "guided-next-btn", "guided-save-btn", "stats-summary",
+      "guided-step-content", "guided-reset-btn", "guided-prev-btn", "guided-next-btn", "guided-save-btn", "stats-summary",
       "emotion-donut", "donut-center-label", "emotion-legend", "intensity-trend", "project-frequency",
       "somatic-frequency", "export-from", "export-to", "export-project-filters", "export-preview",
       "install-app-btn", "refresh-app-btn", "install-status", "backup-export-btn", "backup-import-btn",
@@ -79,7 +92,9 @@
       const raw = localStorage.getItem(DATA.storageKey);
       if (!raw) return initialState();
       const parsed = JSON.parse(raw);
-      const custom = (Array.isArray(parsed.projects) ? parsed.projects : []).filter((p) => !isBuiltinProject(p.id));
+      const parsedProjects = Array.isArray(parsed.projects) ? parsed.projects : [];
+      const builtins = BUILTIN_PROJECTS.map((builtin) => mergeBuiltinProject(builtin, parsedProjects.find((item) => item.id === builtin.id)));
+      const custom = parsedProjects.filter((project) => !isBuiltinProject(project.id));
       const parsedSettings = parsed.settings || {};
       const parsedReminders = parsedSettings.reminders || {};
       return {
@@ -97,7 +112,7 @@
             lastNotified: parsedReminders.lastNotified || {}
           }
         },
-        projects: [...deepCopy(BUILTIN_PROJECTS), ...custom],
+        projects: [...builtins, ...custom],
         records: Array.isArray(parsed.records) ? parsed.records : []
       };
     } catch (_) {
@@ -132,6 +147,7 @@
       if (!chip) return;
       toggleInArray(getQuickArray(chip.dataset.projectId), chip.dataset.tagId);
       renderQuickProjects();
+      renderQuickSuggestions();
     });
 
     els.quickIntensity.addEventListener("input", (event) => {
@@ -151,12 +167,14 @@
       deleteCustomProject(btn.dataset.deleteProjectId);
     });
 
-    document.getElementById("reset-guided-btn").addEventListener("click", () => {
-      ui.guided = newGuidedDraft();
-      ui.guidedStep = 0;
-      renderGuided();
-      toast("引导记录已重置");
-    });
+    if (els.guidedResetBtn) {
+      els.guidedResetBtn.addEventListener("click", () => {
+        ui.guided = newGuidedDraft();
+        ui.guidedStep = 0;
+        renderGuided();
+        toast("已清空本次引导输入");
+      });
+    }
 
     els.guidedPrevBtn.addEventListener("click", () => {
       ui.guidedStep = Math.max(0, ui.guidedStep - 1);
@@ -171,6 +189,48 @@
 
     els.guidedStepContent.addEventListener("click", onGuidedClick);
     els.guidedStepContent.addEventListener("input", onGuidedInput);
+    els.guidedStepContent.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      if (event.target.id === "guided-emotion-input") {
+        event.preventDefault();
+        addGuidedCustomTag("emotion");
+      }
+      if (event.target.id === "guided-somatic-input") {
+        event.preventDefault();
+        addGuidedCustomTag("somatic");
+      }
+    });
+
+    if (els.quickEmotionInput) {
+      els.quickEmotionInput.addEventListener("input", renderQuickSuggestions);
+      els.quickEmotionInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          addQuickCustomTag("emotion");
+        }
+      });
+    }
+    if (els.quickSomaticInput) {
+      els.quickSomaticInput.addEventListener("input", renderQuickSuggestions);
+      els.quickSomaticInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          addQuickCustomTag("somatic");
+        }
+      });
+    }
+    if (els.quickAddEmotionTag) {
+      els.quickAddEmotionTag.addEventListener("click", () => addQuickCustomTag("emotion"));
+    }
+    if (els.quickAddSomaticTag) {
+      els.quickAddSomaticTag.addEventListener("click", () => addQuickCustomTag("somatic"));
+    }
+    if (els.quickEmotionSuggestions) {
+      els.quickEmotionSuggestions.addEventListener("click", onQuickSuggestionClick);
+    }
+    if (els.quickSomaticSuggestions) {
+      els.quickSomaticSuggestions.addEventListener("click", onQuickSuggestionClick);
+    }
 
     document.getElementById("stats-range-selector").addEventListener("click", (event) => {
       const btn = event.target.closest("[data-range]");
@@ -253,6 +313,9 @@
   }
 
   function renderApp() {
+    if (!document.getElementById(`screen-${ui.activeScreen}`)) {
+      ui.activeScreen = "home";
+    }
     renderHeader();
     renderNav();
     document.querySelectorAll(".screen").forEach((screen) => {
@@ -261,7 +324,7 @@
     renderHome();
     renderGuided();
     if (ui.activeScreen === "stats") renderStats();
-    if (ui.activeScreen === "export") renderExportFilters();
+    if (ui.activeScreen === "recent") renderRecentRecords(50);
     if (ui.activeScreen === "settings") renderSettings();
   }
 
@@ -282,16 +345,27 @@
 
   function renderHome() {
     renderQuickProjects();
+    renderQuickSuggestions();
     renderCustomProjects();
-    renderRecentRecords();
   }
 
   function renderQuickProjects() {
     els.quickProjects.innerHTML = state.projects.map((project) => {
       const selected = getQuickArray(project.id);
-      const tags = project.type === "emotion"
-        ? project.quickTagIds.map((id) => EMOTION_TAGS.find((tag) => tag.id === id)).filter(Boolean)
-        : (project.tags || []);
+      const pool = project.tags || [];
+      let tags = pool;
+      if (project.type === "emotion") {
+        const quickIds = Array.isArray(project.quickTagIds) && project.quickTagIds.length
+          ? project.quickTagIds
+          : pool.map((item) => item.id).slice(0, 18);
+        tags = quickIds.map((id) => pool.find((item) => item.id === id)).filter(Boolean);
+      }
+      selected.forEach((id) => {
+        const hit = pool.find((item) => item.id === id);
+        if (hit && !tags.some((item) => item.id === id)) {
+          tags.push(hit);
+        }
+      });
       return `
         <article class="project-card">
           <header>
@@ -310,6 +384,53 @@
     }).join("");
   }
 
+  function renderQuickSuggestions() {
+    renderSuggestionList({
+      projectId: "emotion",
+      inputEl: els.quickEmotionInput,
+      targetEl: els.quickEmotionSuggestions,
+      selectedIds: getQuickArray("emotion"),
+      actionPrefix: "quick-suggest"
+    });
+    renderSuggestionList({
+      projectId: "somatic",
+      inputEl: els.quickSomaticInput,
+      targetEl: els.quickSomaticSuggestions,
+      selectedIds: getQuickArray("somatic"),
+      actionPrefix: "quick-suggest"
+    });
+  }
+
+  function onQuickSuggestionClick(event) {
+    const button = event.target.closest("[data-action='quick-suggest']");
+    if (!button) return;
+    const projectId = button.dataset.projectId;
+    const tagId = button.dataset.tagId;
+    toggleInArray(getQuickArray(projectId), tagId);
+    renderQuickProjects();
+    renderQuickSuggestions();
+  }
+
+  function addQuickCustomTag(projectId) {
+    const isEmotion = projectId === "emotion";
+    const inputEl = isEmotion ? els.quickEmotionInput : els.quickSomaticInput;
+    const colorEl = isEmotion ? els.quickEmotionColor : els.quickSomaticColor;
+    if (!inputEl || !colorEl) return;
+    const label = inputEl.value.trim();
+    if (!label) {
+      toast("先输入标签文字");
+      return;
+    }
+    const tag = ensureProjectTag(projectId, label, colorEl.value, isEmotion ? "自定义情绪" : null);
+    const selected = getQuickArray(projectId);
+    if (!selected.includes(tag.id)) selected.push(tag.id);
+    inputEl.value = "";
+    saveState();
+    renderQuickProjects();
+    renderQuickSuggestions();
+    toast(`已新增标签：${label}`);
+  }
+
   function renderCustomProjects() {
     const custom = state.projects.filter((p) => !isBuiltinProject(p.id));
     if (!custom.length) {
@@ -324,12 +445,12 @@
     `).join("");
   }
 
-  function renderRecentRecords() {
+  function renderRecentRecords(limit = 8) {
     if (!state.records.length) {
       els.recentRecords.innerHTML = `<div class="record-card"><p>还没有记录。可以先用首页快速记录，或者去引导模式慢慢梳理一次。</p></div>`;
       return;
     }
-    const recent = [...state.records].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)).slice(0, 8);
+    const recent = [...state.records].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)).slice(0, limit);
     els.recentRecords.innerHTML = recent.map((record) => {
       const tags = record.projectEntries.flatMap((entry) => entry.entries).slice(0, 8);
       const d = new Date(record.createdAt);
@@ -355,15 +476,26 @@
     els.guidedNextBtn.classList.toggle("hidden", ui.guidedStep === DATA.stepTitles.length - 1);
     els.guidedSaveBtn.classList.toggle("hidden", ui.guidedStep !== DATA.stepTitles.length - 1);
     els.guidedStepContent.innerHTML = guidedStepMarkup(ui.guidedStep);
+    renderGuidedSuggestionLists();
   }
 
   function guidedStepMarkup(step) {
     if (step === 0) {
+      const somaticPool = (getProject("somatic")?.tags) || [];
       return `
         <div class="guided-step-card">
           <div><h3>先感受身体哪里最有感觉</h3><p class="body-copy">这里选中的躯体感觉会自动同步到“躯体化症状项目”。</p></div>
           <div><p class="group-title">身体部位</p><div class="chip-wrap">${DATA.bodyAreas.map((name) => chip(name, ui.guided.bodyAreas.includes(name), `data-guided-body-area="${name}"`)).join("")}</div></div>
-          <div><p class="group-title">躯体感觉</p><div class="chip-wrap">${DATA.somaticTags.map((tag) => chip(tag.label, ui.guided.somaticTagIds.includes(tag.id), `data-guided-somatic-id="${tag.id}"`, tag.color)).join("")}</div></div>
+          <div><p class="group-title">躯体感觉</p><div class="chip-wrap">${somaticPool.map((tag) => chip(tag.label, ui.guided.somaticTagIds.includes(tag.id), `data-guided-somatic-id="${tag.id}"`, tag.color)).join("")}</div></div>
+          <div class="custom-tag-editor">
+            <p class="group-title">自定义躯体标签</p>
+            <div class="tag-entry-row">
+              <input id="guided-somatic-input" type="text" placeholder="例如：后背发凉、太阳穴刺痛">
+              <input id="guided-somatic-color" type="color" value="#4b8fbb" aria-label="自定义躯体标签颜色">
+              <button class="ghost-button" id="guided-add-somatic-tag" type="button">新增并选中</button>
+            </div>
+            <div id="guided-somatic-suggestions" class="chip-wrap"></div>
+          </div>
         </div>
       `;
     }
@@ -387,6 +519,16 @@
               </details>
             `;
           }).join("")}
+          <div class="custom-tag-editor">
+            <p class="group-title">自定义情绪标签</p>
+            <div class="tag-entry-row">
+              <input id="guided-emotion-input" type="text" placeholder="例如：空落落、像被抽空、微微轻松">
+              <input id="guided-emotion-color" type="color" value="#5f7fd1" aria-label="自定义情绪标签颜色">
+              <button class="ghost-button" id="guided-add-emotion-tag" type="button">新增并选中</button>
+            </div>
+            <div id="guided-emotion-suggestions" class="chip-wrap"></div>
+            <p class="project-meta">当前已选：${ui.guided.emotionTagIds.length} 个情绪标签（含自定义）</p>
+          </div>
         </div>
       `;
     }
@@ -427,6 +569,27 @@
   }
 
   function onGuidedClick(event) {
+    if (event.target.id === "guided-add-emotion-tag") {
+      addGuidedCustomTag("emotion");
+      return;
+    }
+    if (event.target.id === "guided-add-somatic-tag") {
+      addGuidedCustomTag("somatic");
+      return;
+    }
+    const suggest = event.target.closest("[data-action='guided-suggest']");
+    if (suggest) {
+      const projectId = suggest.dataset.projectId;
+      const tagId = suggest.dataset.tagId;
+      if (projectId === "emotion") {
+        toggleInArray(ui.guided.emotionTagIds, tagId);
+      }
+      if (projectId === "somatic") {
+        toggleInArray(ui.guided.somaticTagIds, tagId);
+      }
+      renderGuided();
+      return;
+    }
     const area = event.target.closest("[data-guided-body-area]");
     if (area) {
       toggleInArray(ui.guided.bodyAreas, area.dataset.guidedBodyArea);
@@ -451,12 +614,64 @@
       ui.guided.intensity = Number(event.target.value);
       renderGuided();
     }
+    if (event.target.id === "guided-emotion-input" || event.target.id === "guided-somatic-input") {
+      renderGuidedSuggestionLists();
+    }
     if (event.target.id === "guided-event") {
       ui.guided.eventText = event.target.value;
     }
     if (event.target.id === "guided-childhood") {
       ui.guided.childhoodEcho = event.target.value;
     }
+  }
+
+  function renderGuidedSuggestionLists() {
+    const emotionInput = document.getElementById("guided-emotion-input");
+    const emotionWrap = document.getElementById("guided-emotion-suggestions");
+    if (emotionInput && emotionWrap) {
+      renderSuggestionList({
+        projectId: "emotion",
+        inputEl: emotionInput,
+        targetEl: emotionWrap,
+        selectedIds: ui.guided.emotionTagIds,
+        actionPrefix: "guided-suggest"
+      });
+    }
+
+    const somaticInput = document.getElementById("guided-somatic-input");
+    const somaticWrap = document.getElementById("guided-somatic-suggestions");
+    if (somaticInput && somaticWrap) {
+      renderSuggestionList({
+        projectId: "somatic",
+        inputEl: somaticInput,
+        targetEl: somaticWrap,
+        selectedIds: ui.guided.somaticTagIds,
+        actionPrefix: "guided-suggest"
+      });
+    }
+  }
+
+  function addGuidedCustomTag(projectId) {
+    const isEmotion = projectId === "emotion";
+    const inputEl = document.getElementById(isEmotion ? "guided-emotion-input" : "guided-somatic-input");
+    const colorEl = document.getElementById(isEmotion ? "guided-emotion-color" : "guided-somatic-color");
+    if (!inputEl || !colorEl) return;
+    const label = inputEl.value.trim();
+    if (!label) {
+      toast("先输入标签文字");
+      return;
+    }
+
+    const tag = ensureProjectTag(projectId, label, colorEl.value, isEmotion ? "自定义情绪" : null);
+    if (isEmotion) {
+      if (!ui.guided.emotionTagIds.includes(tag.id)) ui.guided.emotionTagIds.push(tag.id);
+    } else if (!ui.guided.somaticTagIds.includes(tag.id)) {
+      ui.guided.somaticTagIds.push(tag.id);
+    }
+    inputEl.value = "";
+    saveState();
+    renderGuided();
+    toast(`已新增标签：${label}`);
   }
 
   function validateGuidedStep(step) {
@@ -502,6 +717,8 @@
     ui.quickNote = "";
     ui.quickIntensity = 3;
     els.quickNote.value = "";
+    if (els.quickEmotionInput) els.quickEmotionInput.value = "";
+    if (els.quickSomaticInput) els.quickSomaticInput.value = "";
     saveState();
     renderApp();
     toast("快速记录已保存");
@@ -623,8 +840,12 @@
       els.emotionLegend.innerHTML = `<p class="body-copy">等你记录几次之后，这里会出现最近常见的情绪分类。</p>`;
       return;
     }
+    const categoryMap = [
+      ...DATA.emotionCategories,
+      { id: "custom", label: "自定义", color: "#6b7d8d" }
+    ];
     let angle = 0;
-    const seg = DATA.emotionCategories.filter((c) => counts[c.id]).map((c) => {
+    const seg = categoryMap.filter((c) => counts[c.id]).map((c) => {
       const from = angle;
       angle += (counts[c.id] / total) * 360;
       return `${c.color} ${from}deg ${angle}deg`;
@@ -632,7 +853,7 @@
     els.emotionDonut.className = "donut-chart";
     els.emotionDonut.style.background = `conic-gradient(${seg.join(", ")})`;
     els.donutCenterLabel.textContent = `${total} 个情绪标签`;
-    els.emotionLegend.innerHTML = DATA.emotionCategories.filter((c) => counts[c.id]).map((c) => {
+    els.emotionLegend.innerHTML = categoryMap.filter((c) => counts[c.id]).map((c) => {
       const n = counts[c.id];
       const p = Math.round((n / total) * 100);
       return `<div class="legend-item"><span class="legend-label"><span class="legend-dot" style="background:${c.color};"></span>${c.label}</span><strong>${n} · ${p}%</strong></div>`;
@@ -704,12 +925,106 @@
 
   function renderSettings() {
     if (!els.reminderEnabled) return;
+    renderExportFilters();
     syncReminderControls();
     syncReminderStatusText();
     updateInstallStatus();
     if (els.backupStatus) {
       els.backupStatus.textContent = `当前本地记录：${state.records.length} 条 · 上次更新：${new Date().toLocaleString("zh-CN")}`;
     }
+  }
+
+  function renderSuggestionList({ projectId, inputEl, targetEl, selectedIds, actionPrefix }) {
+    if (!inputEl || !targetEl) return;
+    const keyword = inputEl.value.trim();
+    const project = getProject(projectId);
+    const pool = project?.tags || [];
+    const matches = findTagsByKeyword(projectId, keyword, 12);
+    const selectedHits = selectedIds
+      .map((id) => pool.find((tag) => tag.id === id))
+      .filter(Boolean);
+    const map = new Map();
+    selectedHits.forEach((tag) => map.set(tag.id, tag));
+    matches.forEach((tag) => map.set(tag.id, tag));
+    const candidates = [...map.values()].slice(0, 12);
+    if (!candidates.length) {
+      targetEl.innerHTML = keyword
+        ? `<span class="project-meta">没有匹配项，可以直接新增“${escapeHtml(keyword)}”。</span>`
+        : `<span class="project-meta">输入关键词可联想已有标签，例如输入“伤”会联想出“【蓝色】伤心”。</span>`;
+      return;
+    }
+    targetEl.innerHTML = candidates.map((tag) => {
+      const selected = selectedIds.includes(tag.id);
+      const prefix = `【${describeColor(tag.color)}】`;
+      return `<button type="button" class="chip ${selected ? "selected" : ""}" data-action="${actionPrefix}" data-project-id="${projectId}" data-tag-id="${tag.id}" style="${selected ? `background:${tag.color || "#2f7f79"};` : ""}">${prefix}${escapeHtml(tag.label)}</button>`;
+    }).join("");
+  }
+
+  function findTagsByKeyword(projectId, keyword, limit = 12) {
+    const project = getProject(projectId);
+    const pool = project?.tags || [];
+    if (!keyword) {
+      return pool.slice(0, limit);
+    }
+    const query = normalizeLabel(keyword);
+    return pool.filter((tag) => normalizeLabel(tag.label).includes(query)).slice(0, limit);
+  }
+
+  function ensureProjectTag(projectId, label, color, emotionCategoryName) {
+    const project = getProject(projectId);
+    if (!project) return null;
+    if (!Array.isArray(project.tags)) project.tags = [];
+    const existing = project.tags.find((tag) => normalizeLabel(tag.label) === normalizeLabel(label));
+    if (existing) {
+      if (color) existing.color = color;
+      return existing;
+    }
+    const id = `${projectId}-custom-${slug(label)}-${Date.now()}`;
+    const entry = {
+      id,
+      label,
+      color: color || project.color || "#3b8f89",
+      categoryId: projectId === "emotion" ? "custom" : null,
+      categoryName: projectId === "emotion" ? (emotionCategoryName || "自定义情绪") : null,
+      groupLabel: null,
+      custom: true
+    };
+    project.tags.unshift(entry);
+    if (projectId === "emotion") {
+      if (!Array.isArray(project.quickTagIds)) project.quickTagIds = [];
+      if (!project.quickTagIds.includes(id)) project.quickTagIds.unshift(id);
+    }
+    return entry;
+  }
+
+  function mergeBuiltinProject(builtin, stored) {
+    const merged = deepCopy(builtin);
+    if (!stored) return merged;
+    if (stored.description) merged.description = stored.description;
+    if (stored.color) merged.color = stored.color;
+    if (Array.isArray(merged.tags) || Array.isArray(stored.tags)) {
+      const map = new Map();
+      (Array.isArray(merged.tags) ? merged.tags : []).forEach((tag) => {
+        map.set(tag.id, deepCopy(tag));
+      });
+      (Array.isArray(stored.tags) ? stored.tags : []).forEach((tag) => {
+        if (!tag || !tag.id) return;
+        if (map.has(tag.id)) {
+          map.set(tag.id, { ...map.get(tag.id), ...tag });
+          return;
+        }
+        const duplicate = [...map.values()].find((item) => normalizeLabel(item.label) === normalizeLabel(tag.label));
+        if (!duplicate) {
+          map.set(tag.id, deepCopy(tag));
+        }
+      });
+      merged.tags = [...map.values()];
+    }
+    if (Array.isArray(merged.quickTagIds) || Array.isArray(stored.quickTagIds)) {
+      const ids = [...(merged.quickTagIds || []), ...(stored.quickTagIds || [])];
+      merged.quickTagIds = [...new Set(ids)];
+    }
+    return merged;
   }
 
   function bootstrapPwa() {
@@ -833,8 +1148,9 @@
   function sanitizeImportedState(payload) {
     const base = initialState();
     const incomingProjects = Array.isArray(payload.projects) ? payload.projects : [];
+    const builtinProjects = BUILTIN_PROJECTS.map((builtin) => mergeBuiltinProject(builtin, incomingProjects.find((item) => item.id === builtin.id)));
     const customProjects = incomingProjects.filter((project) => !isBuiltinProject(project.id));
-    const safeProjects = [...deepCopy(BUILTIN_PROJECTS), ...customProjects];
+    const safeProjects = [...builtinProjects, ...customProjects];
     const safeRecords = Array.isArray(payload.records) ? payload.records : [];
     const safeSlots = Array.isArray(payload.slotTemplates) && payload.slotTemplates.length ? payload.slotTemplates : base.slotTemplates;
     const incomingSettings = payload.settings || {};
@@ -1096,7 +1412,8 @@
   function toTagEntry(project, tagId, intensity) {
     if (!project) return null;
     if (project.type === "emotion") {
-      const tag = EMOTION_TAGS.find((item) => item.id === tagId);
+      const tagPool = project.tags || EMOTION_TAGS;
+      const tag = tagPool.find((item) => item.id === tagId);
       if (!tag) return null;
       return {
         tagId: tag.id,
@@ -1183,6 +1500,39 @@
 
   function pad(n) {
     return String(n).padStart(2, "0");
+  }
+
+  function normalizeLabel(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function describeColor(hex) {
+    const raw = String(hex || "").replace("#", "");
+    if (!/^[0-9a-fA-F]{6}$/.test(raw)) return "默认色";
+    const r = parseInt(raw.slice(0, 2), 16);
+    const g = parseInt(raw.slice(2, 4), 16);
+    const b = parseInt(raw.slice(4, 6), 16);
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const delta = max - min;
+    const saturation = max === 0 ? 0 : delta / max;
+    if (saturation < 0.15) return "灰色";
+    let hue = 0;
+    if (delta !== 0) {
+      if (max === r) hue = ((g - b) / delta) % 6;
+      if (max === g) hue = (b - r) / delta + 2;
+      if (max === b) hue = (r - g) / delta + 4;
+      hue = Math.round(hue * 60);
+      if (hue < 0) hue += 360;
+    }
+    if (hue < 15 || hue >= 345) return "红色";
+    if (hue < 45) return "橙色";
+    if (hue < 70) return "黄色";
+    if (hue < 165) return "绿色";
+    if (hue < 200) return "青色";
+    if (hue < 260) return "蓝色";
+    if (hue < 320) return "紫色";
+    return "粉色";
   }
 
   function slug(value) {
