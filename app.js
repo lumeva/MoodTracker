@@ -14,6 +14,16 @@
     lastNotified: {}
   };
 
+  const EMOTION_CATEGORY_META = {
+    joy: { emoji: "🟡", english: "Joy" },
+    surprise: { emoji: "🟣", english: "Surprise" },
+    negative: { emoji: "🟢", english: "Negative/Bad" },
+    fear: { emoji: "🟠", english: "Fear" },
+    anger: { emoji: "🔴", english: "Anger" },
+    disgust: { emoji: "⚪️", english: "Disgust" },
+    sadness: { emoji: "🔵", english: "Sadness" }
+  };
+
   const PROJECT_COLOR_PALETTE = [
     "#5a84c6",
     "#d87354",
@@ -25,6 +35,7 @@
     "#b36b63"
   ];
 
+  const REFERENCE_LIBRARY = createReferenceLibrary();
   const BUILTIN_PROJECTS = createBuiltinProjects();
   const state = loadState();
   const ui = createInitialUi();
@@ -174,6 +185,7 @@
 
     els.guidedStepContent.addEventListener("click", onGuidedClick);
     els.guidedStepContent.addEventListener("input", onGuidedInput);
+    els.guidedStepContent.addEventListener("change", onGuidedChange);
     els.guidedStepContent.addEventListener("keydown", onGuidedKeydown);
 
     els.statsRangeSelector.addEventListener("click", (event) => {
@@ -296,7 +308,7 @@
       projectId: "somatic",
       query: ui.quick.somaticQuery,
       selectedIds: ui.quick.selectedSomaticIds,
-      emptyText: "这里会出现你之前用过的躯体感觉联想。"
+      emptyText: "这里会显示你用过的躯体感觉，也会给你一些可直接采用的参考词。"
     });
   }
 
@@ -372,36 +384,27 @@
     const recent = getRecentOtherRecords(8);
 
     if (!recent.length) {
-      els.otherRecordsSelected.innerHTML = `<div class="selected-placeholder">这里会显示你最近添加过的其他项目记录，点右侧 × 可以删除。</div>`;
+      els.otherRecordsSelected.innerHTML = `<div class="selected-placeholder">这里会显示你最近加过的其他项目标签。内容会按一行横向滑动，不会把页面撑得太长。</div>`;
       return;
     }
 
     els.otherRecordsSelected.innerHTML = recent.map((record) => {
       const entry = record.projectEntries[0];
       const tag = entry && entry.entries && entry.entries[0];
-      const projectRef = entry ? getProject(entry.projectId) : null;
-      const projectColor = (entry && entry.projectColor) || (projectRef && projectRef.color) || "#4f8f8b";
-      const title = tag ? `${entry.projectName} / ${tag.label}` : entry.projectName;
-      const note = (entry && entry.note) || record.note || "这条记录没有额外备注。";
+      const title = tag ? `${entry.projectName} · ${tag.label}` : entry.projectName;
+      const hint = [formatRecordMoment(record.createdAt), record.slotName].filter(Boolean).join(" · ");
 
       return `
-        <article class="entry-card">
-          <div class="entry-card-head">
-            <div class="entry-card-title">
-              <span class="tag-dot" style="--dot-color:${safeColor(projectColor)}"></span>
-              <span>${escapeHtml(title)}</span>
-            </div>
-            <button
-              type="button"
-              class="entry-card-remove"
-              data-action="delete-other-record"
-              data-record-id="${record.id}"
-              aria-label="删除这条记录"
-            >×</button>
-          </div>
-          <div class="entry-card-meta">${escapeHtml(formatRecordMoment(record.createdAt))} · ${escapeHtml(record.slotName)}</div>
-          <div class="entry-card-note">${escapeHtml(note)}</div>
-        </article>
+        <div class="selected-chip entry-chip" title="${escapeHtml(hint)}">
+          <span class="selected-chip__label">${escapeHtml(title)}</span>
+          <button
+            type="button"
+            class="chip-remove"
+            data-action="delete-other-record"
+            data-record-id="${record.id}"
+            aria-label="删除这条记录"
+          >×</button>
+        </div>
       `;
     }).join("");
   }
@@ -442,7 +445,7 @@
         projectId: "somatic",
         query: ui.guided.somaticQuery,
         selectedIds: ui.guided.selectedSomaticIds,
-        emptyText: "这里会联想你以前记录过的躯体感觉。"
+        emptyText: "这里会联想你以前记录过的躯体感觉，也会补一些参考词。"
       });
     }
 
@@ -518,11 +521,19 @@
   }
 
   function guidedEmotionStepMarkup() {
+    const category = getEmotionReferenceCategory(ui.guided.referenceEmotionCategoryId);
+    const groups = category ? category.groups : [];
+    const group = category
+      ? groups.find((item) => item.label === ui.guided.referenceEmotionGroupLabel)
+      : null;
+    const tagOptions = group ? group.tags : [];
+    const hasReferenceSelection = Boolean(category && group && ui.guided.referenceEmotionTagLabel);
+
     return `
       <div class="step-card">
         <div class="step-copy">
           <h3>给情绪命名，并为它打一个强度</h3>
-          <p class="body-copy">情绪之轮只作为参考。你既可以点选已有标签，也可以写下属于你自己的情绪命名。</p>
+          <p class="body-copy">你可以直接输入，也可以从下面的一级、二级、三级分类里选一个最接近的参考词。</p>
         </div>
 
         <div>
@@ -535,6 +546,66 @@
               emptyText: "还没有选情绪。可以先从最接近的词开始。"
             })}
           </div>
+        </div>
+
+        <div class="reference-picker">
+          <p class="group-title">情绪参考分类</p>
+          <div class="select-grid">
+            <div class="form-block inline-gap">
+              <label class="field-label" for="guided-emotion-category">一级分类</label>
+              <select id="guided-emotion-category" class="reference-select">
+                <option value="">先选情绪大类</option>
+                ${DATA.emotionCategories.map((item) => `
+                  <option value="${escapeHtml(item.id)}" ${ui.guided.referenceEmotionCategoryId === item.id ? "selected" : ""}>
+                    ${escapeHtml(getEmotionCategoryOptionLabel(item))}
+                  </option>
+                `).join("")}
+              </select>
+            </div>
+            <div class="form-block inline-gap">
+              <label class="field-label" for="guided-emotion-group">二级分类</label>
+              <select
+                id="guided-emotion-group"
+                class="reference-select"
+                ${category ? "" : "disabled"}
+              >
+                <option value="">再选细分类</option>
+                ${groups.map((item) => `
+                  <option value="${escapeHtml(item.label)}" ${ui.guided.referenceEmotionGroupLabel === item.label ? "selected" : ""}>
+                    ${escapeHtml(item.label)}
+                  </option>
+                `).join("")}
+              </select>
+            </div>
+            <div class="form-block inline-gap">
+              <label class="field-label" for="guided-emotion-tag">三级分类</label>
+              <select
+                id="guided-emotion-tag"
+                class="reference-select"
+                ${group ? "" : "disabled"}
+              >
+                <option value="">最后选具体情绪</option>
+                ${tagOptions.map((tagLabel) => `
+                  <option value="${escapeHtml(tagLabel)}" ${ui.guided.referenceEmotionTagLabel === tagLabel ? "selected" : ""}>
+                    ${escapeHtml(tagLabel)}
+                  </option>
+                `).join("")}
+              </select>
+            </div>
+          </div>
+          <div class="button-row reference-action-row">
+            <button
+              class="ghost-button reference-action"
+              type="button"
+              data-guided-action="add-reference-emotion"
+              ${hasReferenceSelection ? "" : "disabled"}
+            >加入已选情绪</button>
+          </div>
+          <p class="field-subtle">
+            ${hasReferenceSelection
+              ? `当前参考：${escapeHtml(category.label)} · ${escapeHtml(group.label)} · ${escapeHtml(ui.guided.referenceEmotionTagLabel)}`
+              : "参考分类不会一开始全部进入你的标签库，只有在你选中或主动创建后才会入库。"}
+          </p>
         </div>
 
         <div>
@@ -562,36 +633,6 @@
             </div>
           </div>
         </div>
-
-        <details class="details-card" open>
-          <summary>情绪之轮参考</summary>
-          <div class="details-inner wheel-grid">
-            ${DATA.emotionCategories.map((category) => `
-              <div class="wheel-group">
-                <div class="record-entry-title">
-                  <span class="tag-dot large" style="--dot-color:${safeColor(category.color)}"></span>
-                  <span>${escapeHtml(category.label)}</span>
-                </div>
-                ${category.groups.map((group) => `
-                  <div>
-                    <div class="wheel-label">${escapeHtml(group.label)}</div>
-                    <div class="choice-grid">
-                      ${group.tags.map((tagLabel) => {
-                        const tagId = `${category.id}-${tagLabel}`;
-                        return choiceChipMarkup({
-                          label: tagLabel,
-                          dotColor: category.color,
-                          active: ui.guided.selectedEmotionIds.includes(tagId),
-                          dataset: { guidedSelect: "emotion", tagId }
-                        });
-                      }).join("")}
-                    </div>
-                  </div>
-                `).join("")}
-              </div>
-            `).join("")}
-          </div>
-        </details>
       </div>
     `;
   }
@@ -913,10 +954,9 @@
       const project = getProject(tab);
       content = `
         <div class="manager-panel">
-          <p class="settings-note">保留内置标签，也支持继续添加你自己的标签。颜色可以随时再改。</p>
-          <div class="input-grid two-up">
+          <p class="settings-note">这里会收集你已经用过或主动创建的标签。参考词不会在一开始全部铺开，颜色也可以之后再改。</p>
+          <div class="input-grid">
             <input id="library-tag-name" type="text" placeholder="输入一个新标签">
-            <input id="library-tag-color" type="color" value="${safeColor(project.color)}" aria-label="标签颜色">
           </div>
           <button class="secondary-button" type="button" data-settings-action="add-library-tag" data-project-id="${project.id}">
             新增${project.name}标签
@@ -990,10 +1030,9 @@
         </div>
 
         <div class="manager-panel">
-          <p class="settings-note">标签一次添加一个，后面还可以继续补充和换颜色。</p>
-          <div class="input-grid two-up">
+          <p class="settings-note">标签一次添加一个，后面还可以继续补充，颜色也能随时再调。</p>
+          <div class="input-grid">
             <input id="project-detail-tag-name" type="text" placeholder="例如：数学、英语、语文">
-            <input id="project-detail-tag-color" type="color" value="${safeColor(project.color)}" aria-label="标签颜色">
           </div>
           <button class="secondary-button" type="button" data-settings-action="add-project-tag" data-project-id="${project.id}">新增项目标签</button>
         </div>
@@ -1138,7 +1177,7 @@
       const count = usage.tagById.get(tag.id) || usage.tagByLabel.get(normalizeLabel(tag.label)) || 0;
       const meta = tag.categoryName
         ? `${tag.categoryName}${tag.groupLabel ? ` · ${tag.groupLabel}` : ""}`
-        : `已记录 ${count} 次`;
+        : "自定义";
 
       return `
         <div class="manager-row">
@@ -1242,7 +1281,6 @@
         .join(" ");
       return `
         <div class="selected-chip">
-          <span class="tag-dot" style="--dot-color:${safeColor(tag.color || project.color)}"></span>
           <span class="selected-chip__label">${escapeHtml(tag.label)}</span>
           <button
             type="button"
@@ -1272,16 +1310,18 @@
 
     const trimmed = String(query || "").trim();
     const suggestions = getTagSuggestions(projectId, trimmed, selectedIds || [], 8);
+    const referenceSuggestions = (trimmed || projectId === "somatic")
+      ? getReferenceTagSuggestions(projectId, trimmed, selectedIds || [], Math.max(0, 8 - suggestions.length))
+      : [];
     const usage = getUsageMaps();
     const parts = [];
 
-    if (trimmed && !findTagByLabel(projectId, trimmed)) {
+    if (trimmed && !findTagByLabel(projectId, trimmed) && !findReferenceTagByLabel(projectId, trimmed)) {
       parts.push(suggestionButtonMarkup({
         context,
         type: "tag",
-        title: `新增“${trimmed}”`,
-        meta: "按这个名字创建一个新标签",
-        dotColor: project.color,
+        title: `新增 ${trimmed}`,
+        meta: "创建自定义标签",
         projectId,
         createLabel: trimmed,
         isCreate: true
@@ -1298,9 +1338,22 @@
         type: "tag",
         title: tag.label,
         meta,
-        dotColor: tag.color || project.color,
         projectId,
         tagId: tag.id
+      }));
+    });
+
+    referenceSuggestions.forEach((tag) => {
+      parts.push(suggestionButtonMarkup({
+        context,
+        type: "tag",
+        title: tag.label,
+        meta: `${tag.categoryName || "参考词"}${tag.groupLabel ? ` · ${tag.groupLabel}` : ""}`,
+        projectId,
+        referenceLabel: tag.label,
+        referenceCategoryId: tag.categoryId || "",
+        referenceCategoryName: tag.categoryName || "",
+        referenceGroupLabel: tag.groupLabel || ""
       }));
     });
 
@@ -1309,7 +1362,22 @@
       : `<div class="empty-inline">${escapeHtml(emptyText)}</div>`;
   }
 
-  function suggestionButtonMarkup({ context, type, title, meta, dotColor, projectId, tagId, createLabel, createName, isCreate }) {
+  function suggestionButtonMarkup({
+    context,
+    type,
+    title,
+    meta,
+    dotColor,
+    projectId,
+    tagId,
+    createLabel,
+    createName,
+    isCreate,
+    referenceLabel,
+    referenceCategoryId,
+    referenceCategoryName,
+    referenceGroupLabel
+  }) {
     const dataset = [
       `data-suggestion-type="${type}"`,
       `data-context="${context}"`
@@ -1319,14 +1387,20 @@
     if (tagId) dataset.push(`data-tag-id="${tagId}"`);
     if (createLabel) dataset.push(`data-create-label="${escapeHtml(createLabel)}"`);
     if (createName) dataset.push(`data-create-name="${escapeHtml(createName)}"`);
+    if (referenceLabel) dataset.push(`data-reference-label="${escapeHtml(referenceLabel)}"`);
+    if (referenceCategoryId) dataset.push(`data-reference-category-id="${escapeHtml(referenceCategoryId)}"`);
+    if (referenceCategoryName) dataset.push(`data-reference-category-name="${escapeHtml(referenceCategoryName)}"`);
+    if (referenceGroupLabel) dataset.push(`data-reference-group-label="${escapeHtml(referenceGroupLabel)}"`);
 
     return `
-      <button type="button" class="suggestion-item ${isCreate ? "create" : ""}" ${dataset.join(" ")}>
-        <span class="suggestion-main">
-          <span class="tag-dot" style="--dot-color:${safeColor(dotColor)}"></span>
-          <span class="suggestion-title">${escapeHtml(title)}</span>
-        </span>
-        <span class="suggestion-meta">${escapeHtml(meta)}</span>
+      <button
+        type="button"
+        class="suggestion-item ${isCreate ? "create" : ""}"
+        ${dataset.join(" ")}
+        title="${escapeHtml(meta ? `${title} · ${meta}` : title)}"
+      >
+        ${dotColor ? `<span class="tag-dot" style="--dot-color:${safeColor(dotColor)}"></span>` : ""}
+        <span class="suggestion-title">${escapeHtml(title)}</span>
       </button>
     `;
   }
@@ -1448,16 +1522,20 @@
     let tagId = dataset.tagId;
     const projectId = dataset.projectId;
 
-    if (dataset.createLabel) {
-      const project = getProject(projectId);
-      const createdTag = ensureTag(
-        projectId,
-        dataset.createLabel,
-        project ? project.color : "#4f8f8b",
-        projectId === "emotion" ? { categoryName: "自定义" } : {}
-      );
-      tagId = createdTag.id;
+    if (dataset.referenceLabel) {
+      const createdTag = ensureReferenceTag(projectId, {
+        label: dataset.referenceLabel,
+        categoryId: dataset.referenceCategoryId || null,
+        categoryName: dataset.referenceCategoryName || null,
+        groupLabel: dataset.referenceGroupLabel || null
+      });
+      tagId = createdTag ? createdTag.id : "";
+    } else if (dataset.createLabel) {
+      const createdTag = ensureUserFacingTag(projectId, dataset.createLabel);
+      tagId = createdTag ? createdTag.id : "";
     }
+
+    if (!tagId && dataset.suggestionType === "tag") return;
 
     if (dataset.context === "quick-emotion") {
       addQuickTagById("emotion", tagId);
@@ -1489,6 +1567,14 @@
     const suggestionButton = event.target.closest("[data-suggestion-type]");
     if (suggestionButton) {
       handleSuggestion(suggestionButton.dataset);
+      return;
+    }
+
+    const actionButton = event.target.closest("[data-guided-action]");
+    if (actionButton) {
+      if (actionButton.dataset.guidedAction === "add-reference-emotion") {
+        addGuidedReferenceEmotion();
+      }
       return;
     }
 
@@ -1550,6 +1636,30 @@
 
     if (target.id === "guided-childhood-echo") {
       ui.guided.childhoodEcho = target.value;
+    }
+  }
+
+  function onGuidedChange(event) {
+    const target = event.target;
+
+    if (target.id === "guided-emotion-category") {
+      ui.guided.referenceEmotionCategoryId = target.value;
+      ui.guided.referenceEmotionGroupLabel = "";
+      ui.guided.referenceEmotionTagLabel = "";
+      renderGuided();
+      return;
+    }
+
+    if (target.id === "guided-emotion-group") {
+      ui.guided.referenceEmotionGroupLabel = target.value;
+      ui.guided.referenceEmotionTagLabel = "";
+      renderGuided();
+      return;
+    }
+
+    if (target.id === "guided-emotion-tag") {
+      ui.guided.referenceEmotionTagLabel = target.value;
+      renderGuided();
     }
   }
 
@@ -1756,12 +1866,7 @@
     const query = kind === "emotion" ? ui.quick.emotionQuery.trim() : ui.quick.somaticQuery.trim();
     if (!query) return;
 
-    const tag = findTagByLabel(projectId, query) || ensureTag(
-      projectId,
-      query,
-      getProject(projectId).color,
-      projectId === "emotion" ? { categoryName: "自定义" } : {}
-    );
+    const tag = findTagByLabel(projectId, query) || ensureUserFacingTag(projectId, query);
 
     addQuickTagById(kind, tag.id);
   }
@@ -1788,12 +1893,7 @@
     const query = kind === "emotion" ? ui.guided.emotionQuery.trim() : ui.guided.somaticQuery.trim();
     if (!query) return;
 
-    const tag = findTagByLabel(projectId, query) || ensureTag(
-      projectId,
-      query,
-      getProject(projectId).color,
-      projectId === "emotion" ? { categoryName: "自定义" } : {}
-    );
+    const tag = findTagByLabel(projectId, query) || ensureUserFacingTag(projectId, query);
 
     addGuidedTagById(kind, tag.id);
   }
@@ -1809,6 +1909,65 @@
     }
 
     renderGuided();
+  }
+
+  function addGuidedReferenceEmotion() {
+    const category = getEmotionReferenceCategory(ui.guided.referenceEmotionCategoryId);
+    if (!category) {
+      toast("先选一个一级情绪分类。");
+      return;
+    }
+
+    const group = category.groups.find((item) => item.label === ui.guided.referenceEmotionGroupLabel);
+    if (!group || !ui.guided.referenceEmotionTagLabel) {
+      toast("把三级分类选完整后，再加入已选情绪。");
+      return;
+    }
+
+    const tag = ensureReferenceTag("emotion", {
+      label: ui.guided.referenceEmotionTagLabel,
+      categoryId: category.id,
+      categoryName: category.label,
+      groupLabel: group.label
+    });
+
+    if (!tag) return;
+
+    addGuidedTagById("emotion", tag.id);
+  }
+
+  function ensureUserFacingTag(projectId, label) {
+    const existing = findTagByLabel(projectId, label);
+    if (existing) return existing;
+
+    const reference = findReferenceTagByLabel(projectId, label);
+    if (reference) {
+      return ensureReferenceTag(projectId, reference);
+    }
+
+    const project = getProject(projectId);
+    return ensureTag(
+      projectId,
+      label,
+      project ? project.color : "#4f8f8b",
+      projectId === "emotion" ? { categoryName: "自定义" } : {}
+    );
+  }
+
+  function ensureReferenceTag(projectId, reference) {
+    const project = getProject(projectId);
+    if (!project || !reference || !reference.label) return null;
+
+    return ensureTag(
+      projectId,
+      reference.label,
+      project.color,
+      {
+        categoryId: reference.categoryId || null,
+        categoryName: reference.categoryName || null,
+        groupLabel: reference.groupLabel || null
+      }
+    );
   }
 
   function commitOtherProjectQuery() {
@@ -2010,17 +2169,14 @@
 
   function addLibraryTag(projectId) {
     const nameInput = document.getElementById("library-tag-name");
-    const colorInput = document.getElementById("library-tag-color");
     const label = nameInput ? nameInput.value.trim() : "";
-    const project = getProject(projectId);
-    const color = colorInput ? colorInput.value : (project && project.color);
 
     if (!label) {
       toast("先输入一个标签名称。");
       return;
     }
 
-    ensureTag(projectId, label, color, projectId === "emotion" ? { categoryName: "自定义" } : {});
+    ensureUserFacingTag(projectId, label);
     renderApp();
     toast("标签已经添加");
   }
@@ -2080,9 +2236,8 @@
     if (!project || isBuiltinProject(project.id)) return;
 
     const nameInput = document.getElementById("project-detail-tag-name");
-    const colorInput = document.getElementById("project-detail-tag-color");
     const label = nameInput ? nameInput.value.trim() : "";
-    const color = colorInput ? colorInput.value : project.color;
+    const color = project.color;
 
     if (!label) {
       toast("先输入标签名称。");
@@ -2606,6 +2761,59 @@
       .slice(0, limit);
   }
 
+  function getEmotionReferenceCategory(categoryId) {
+    return DATA.emotionCategories.find((item) => item.id === categoryId) || null;
+  }
+
+  function getEmotionCategoryOptionLabel(category) {
+    const meta = EMOTION_CATEGORY_META[category.id] || {};
+    const pieces = [];
+    if (meta.emoji) pieces.push(meta.emoji);
+    pieces.push(category.label);
+    if (meta.english) pieces.push(`(${meta.english})`);
+    return pieces.join(" ");
+  }
+
+  function createReferenceLibrary() {
+    return {
+      emotion: flattenEmotionTags(DATA.emotionCategories),
+      somatic: DATA.somaticTags.map((tag) => ({
+        id: tag.id,
+        label: tag.label,
+        color: safeColor(tag.color, "#5a84c6"),
+        categoryId: null,
+        categoryName: "躯体参考",
+        groupLabel: null
+      }))
+    };
+  }
+
+  function findReferenceTagByLabel(projectId, label) {
+    const normalized = normalizeLabel(label);
+    return (REFERENCE_LIBRARY[projectId] || []).find((tag) => normalizeLabel(tag.label) === normalized) || null;
+  }
+
+  function getReferenceTagSuggestions(projectId, query, selectedIds, limit) {
+    const normalizedQuery = normalizeLabel(query);
+    const project = getProject(projectId);
+    const showDefaultSomaticReferences = projectId === "somatic" && !normalizedQuery;
+
+    if (!project) return [];
+
+    return (REFERENCE_LIBRARY[projectId] || [])
+      .filter((tag) => !findTagByLabel(projectId, tag.label))
+      .filter((tag) => !(selectedIds || []).includes(tag.id))
+      .filter((tag) => showDefaultSomaticReferences || normalizeLabel(tag.label).includes(normalizedQuery))
+      .sort((a, b) => {
+        if (showDefaultSomaticReferences) return 0;
+        const scoreA = matchScore(a.label, normalizedQuery);
+        const scoreB = matchScore(b.label, normalizedQuery);
+        if (scoreA !== scoreB) return scoreB - scoreA;
+        return a.label.localeCompare(b.label, "zh-CN");
+      })
+      .slice(0, limit);
+  }
+
   function getTagSuggestions(projectId, query, selectedIds, limit) {
     const project = getProject(projectId);
     if (!project) return [];
@@ -2678,6 +2886,26 @@
     return { tagById, tagByLabel, projectById };
   }
 
+  function countTagUsageByProject(records) {
+    return (records || []).reduce((acc, record) => {
+      (record.projectEntries || []).forEach((entry) => {
+        if (!acc[entry.projectId]) {
+          acc[entry.projectId] = {
+            byId: new Set(),
+            byLabel: new Set()
+          };
+        }
+
+        (entry.entries || []).forEach((item) => {
+          if (item.tagId) acc[entry.projectId].byId.add(item.tagId);
+          if (item.label) acc[entry.projectId].byLabel.add(normalizeLabel(item.label));
+        });
+      });
+
+      return acc;
+    }, {});
+  }
+
   function createBuiltinProjects() {
     return [
       {
@@ -2686,23 +2914,15 @@
         type: "emotion",
         builtin: true,
         color: "#d87354",
-        tags: flattenEmotionTags(DATA.emotionCategories)
+        tags: []
       },
       {
         id: "somatic",
-        name: "躯体化症状",
+        name: "躯体感受",
         type: "somatic",
         builtin: true,
         color: "#5a84c6",
-        tags: DATA.somaticTags.map((tag) => ({
-          id: tag.id,
-          label: tag.label,
-          color: safeColor(tag.color, "#5a84c6"),
-          builtin: true,
-          categoryId: null,
-          categoryName: null,
-          groupLabel: null
-        }))
+        tags: []
       }
     ];
   }
@@ -2741,7 +2961,7 @@
 
   function initialState() {
     return {
-      version: 2,
+      version: 3,
       slotTemplates: [deepCopy(DATA.slotTemplate)],
       settings: {
         activeSlotTemplateId: DATA.slotTemplate.id,
@@ -2766,9 +2986,18 @@
         .filter((project) => !isBuiltinProject(project.id))
         .map(sanitizeCustomProject)
     ];
+    const records = sanitizeRecords(
+      Array.isArray(parsed && parsed.records) ? parsed.records : [],
+      mergedProjects,
+      slotTemplates,
+      activeSlotTemplateId
+    );
+
+    hydrateProjectsFromRecords(mergedProjects, records);
+    pruneUnusedBuiltinSeedTags(mergedProjects, records);
 
     return {
-      version: 2,
+      version: 3,
       slotTemplates,
       settings: {
         activeSlotTemplateId,
@@ -2782,12 +3011,7 @@
         }
       },
       projects: mergedProjects,
-      records: sanitizeRecords(
-        Array.isArray(parsed && parsed.records) ? parsed.records : [],
-        mergedProjects,
-        slotTemplates,
-        activeSlotTemplateId
-      )
+      records
     };
   }
 
@@ -2814,6 +3038,64 @@
       categoryName: tag.categoryName || null,
       groupLabel: tag.groupLabel || null
     };
+  }
+
+  function hydrateProjectsFromRecords(projects, records) {
+    (records || []).forEach((record) => {
+      (record.projectEntries || []).forEach((entry) => {
+        const project = getProjectFromList(projects, entry.projectId);
+        if (!project) return;
+
+        if (!Array.isArray(project.tags)) {
+          project.tags = [];
+        }
+
+        (entry.entries || []).forEach((item) => {
+          if (!item || !item.label) return;
+
+          const existing = project.tags.find((tag) => (
+            (item.tagId && tag.id === item.tagId)
+            || normalizeLabel(tag.label) === normalizeLabel(item.label)
+          ));
+
+          if (existing) {
+            existing.categoryId = existing.categoryId || item.categoryId || null;
+            existing.categoryName = existing.categoryName || item.categoryName || null;
+            existing.groupLabel = existing.groupLabel || item.groupLabel || null;
+            existing.color = safeColor(existing.color, item.color || project.color);
+            return;
+          }
+
+          project.tags.push({
+            id: item.tagId || createId(`${project.id}-tag`),
+            label: item.label,
+            color: safeColor(item.color, project.color),
+            builtin: false,
+            categoryId: item.categoryId || null,
+            categoryName: item.categoryName || null,
+            groupLabel: item.groupLabel || null
+          });
+        });
+      });
+    });
+  }
+
+  function pruneUnusedBuiltinSeedTags(projects, records) {
+    const usage = countTagUsageByProject(records);
+
+    (projects || []).forEach((project) => {
+      if (!project || !project.builtin || !Array.isArray(project.tags)) return;
+
+      project.tags = project.tags.filter((tag) => {
+        if (!tag.builtin) return true;
+        const projectUsage = usage[project.id];
+        if (!projectUsage) return false;
+        return Boolean(
+          (tag.id && projectUsage.byId.has(tag.id))
+          || projectUsage.byLabel.has(normalizeLabel(tag.label))
+        );
+      });
+    });
   }
 
   function sanitizeRecords(records, projectList, slotTemplates, activeSlotTemplateId) {
@@ -2973,6 +3255,9 @@
       bodyAreas: [],
       somaticQuery: "",
       emotionQuery: "",
+      referenceEmotionCategoryId: "",
+      referenceEmotionGroupLabel: "",
+      referenceEmotionTagLabel: "",
       selectedSomaticIds: [],
       selectedEmotionIds: [],
       intensity: 3,
