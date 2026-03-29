@@ -2532,8 +2532,25 @@
         return;
       }
 
-      registration.update();
-      toast("已尝试刷新离线缓存");
+      let reloaded = false;
+      const reloadPage = () => {
+        if (reloaded) return;
+        reloaded = true;
+        window.location.reload();
+      };
+
+      navigator.serviceWorker.addEventListener("controllerchange", reloadPage, { once: true });
+
+      registration.update().then(() => {
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: "SKIP_WAITING" });
+          toast("正在刷新离线缓存，页面会自动重载");
+          setTimeout(reloadPage, 1500);
+          return;
+        }
+
+        toast("已检查更新；如果刚部署完成，请再刷新一次页面");
+      });
     });
   }
 
