@@ -4,30 +4,160 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#f6eee4">
-  <meta name="description" content="手机端情绪与日常记录工具，支持引导式记录、统计与导出。">
+  <meta
+    name="description"
+    content="手机端情绪、躯体感受与日常项目记录工具，支持快速记录、引导记录、统计与文字导出。"
+  >
   <title>心绪记录</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="background-glow background-glow-one"></div>
-  <div class="background-glow background-glow-two"></div>
+  <div class="ambient ambient-one" aria-hidden="true"></div>
+  <div class="ambient ambient-two" aria-hidden="true"></div>
 
   <div class="app-shell">
     <header class="topbar">
       <div>
         <p class="eyebrow">Mood Tracker</p>
         <h1>心绪记录</h1>
+        <p class="topbar-meta">当前记录会自动归入系统时间对应的时段，不需要手动选择时间。</p>
       </div>
+      <span class="hint-tag topbar-slot" id="current-slot-tag">当前时段 · --</span>
     </header>
 
     <main class="main-content">
       <section class="screen active" id="screen-home" aria-labelledby="home-title">
-        <div class="hero-card home-hero-card">
+        <div class="card home-primary-card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Quick Check-In</p>
+              <h2 id="home-title">首页快速记录</h2>
+            </div>
+            <span class="hint-tag">自动锁定当前时段</span>
+          </div>
+          <p class="body-copy">
+            这次记录只需要抓住当下最重要的感受。情绪和躯体标签都支持自由输入，也会联想你之前记录过的内容。
+          </p>
+
+          <div class="field-panel">
+            <div class="field-header">
+              <h3>情绪可自由填写</h3>
+              <p class="field-subtle">输入时会联想你以前用过的情绪标签，情绪之轮只作为参考。</p>
+            </div>
+            <div id="quick-emotion-selected" class="selected-strip"></div>
+            <div class="input-shell">
+              <input
+                id="quick-emotion-input"
+                type="text"
+                autocomplete="off"
+                placeholder="输入情绪，例如：伤心、麻木、安心、委屈"
+              >
+            </div>
+            <div id="quick-emotion-suggestions" class="suggestion-list"></div>
+          </div>
+
+          <div class="field-panel">
+            <div class="field-header">
+              <h3>躯体感受可自由填写</h3>
+              <p class="field-subtle">同样支持联想和补全，例如：胸口发紧、肩膀很紧、头皮发麻。</p>
+            </div>
+            <div id="quick-somatic-selected" class="selected-strip"></div>
+            <div class="input-shell">
+              <input
+                id="quick-somatic-input"
+                type="text"
+                autocomplete="off"
+                placeholder="输入躯体感受，例如：胸口发紧、头皮发麻、肩膀很紧"
+              >
+            </div>
+            <div id="quick-somatic-suggestions" class="suggestion-list"></div>
+          </div>
+
+          <div class="form-block">
+            <label class="field-label" for="quick-intensity">这次情绪波动强度</label>
+            <div class="range-wrap">
+              <input id="quick-intensity" type="range" min="1" max="5" step="1" value="3">
+              <div class="range-meta">
+                <span>轻微</span>
+                <strong id="quick-intensity-label">3 · 有点明显</strong>
+                <span>强烈</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-block">
+            <label class="field-label" for="quick-note">一句话备注</label>
+            <textarea
+              id="quick-note"
+              rows="4"
+              placeholder="例如：晚饭前突然开始胸口发紧，想到明天的事情很慌。"
+            ></textarea>
+          </div>
+
+          <div class="save-row">
+            <button class="primary-button" id="save-quick-btn" type="button">保存这次快速记录</button>
+          </div>
+        </div>
+
+        <div class="card home-secondary-card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Other Projects</p>
+              <h2>其他项目记录</h2>
+            </div>
+          </div>
+          <p class="body-copy">
+            这里专门用来记录学习、饭量、社交等其他项目。每点一次“添加这一条其他项目”，就会保存一条独立记录。
+          </p>
+
+          <div id="other-records-selected" class="entry-strip"></div>
+
+          <div class="form-block">
+            <label class="field-label" for="other-project-input">项目</label>
+            <div class="input-shell">
+              <input
+                id="other-project-input"
+                type="text"
+                autocomplete="off"
+                placeholder="选择或输入项目，例如：学习、饭量、社交"
+              >
+            </div>
+            <div id="other-project-suggestions" class="suggestion-list"></div>
+          </div>
+
+          <div class="form-block">
+            <label class="field-label" for="other-tag-input">标签</label>
+            <div class="input-shell">
+              <input
+                id="other-tag-input"
+                type="text"
+                autocomplete="off"
+                placeholder="选择该项目下的标签，例如：数学、英语、语文"
+              >
+            </div>
+            <div id="other-tag-suggestions" class="suggestion-list"></div>
+          </div>
+
+          <div class="form-block">
+            <label class="field-label" for="other-note">该项目备注</label>
+            <textarea
+              id="other-note"
+              rows="3"
+              placeholder="例如：今天写了一个小时的数学题。"
+            ></textarea>
+          </div>
+
+          <div class="save-row">
+            <button class="secondary-button" id="add-other-entry-btn" type="button">添加这一条其他项目</button>
+          </div>
+        </div>
+
+        <div class="hero-card home-summary-card">
           <div>
             <p class="eyebrow">此刻记录</p>
-            <h2 id="home-title">让记录发生在当下</h2>
+            <h2>让记录发生在当下</h2>
             <p class="hero-copy">
               当前记录会自动归入系统时间对应的时段，不需要手动选时间。补记和时段模板会放在下一轮迭代里。
             </p>
@@ -47,113 +177,30 @@
             </div>
           </div>
         </div>
-
-        <div class="card home-quick-card">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Quick Check-in</p>
-              <h3>首页快速记录</h3>
-            </div>
-            <span class="hint-tag">自动锁定当前时段</span>
-          </div>
-          <p class="body-copy">
-            这次记录可以同时包含多个项目。你只需要点选标签，写一句话备注，就能保存。
-          </p>
-          <div id="quick-projects" class="project-grid"></div>
-
-          <div class="custom-tag-editor">
-            <p class="group-title">情绪可自由填写（情绪之轮只作为参考）</p>
-            <div class="tag-entry-row">
-              <input id="quick-emotion-input" type="text" placeholder="输入情绪，例如：伤、麻木、安心">
-              <input id="quick-emotion-color" type="color" value="#5f7fd1" aria-label="情绪标签颜色">
-              <button class="ghost-button" id="quick-add-emotion-tag" type="button">新增情绪标签</button>
-            </div>
-            <div id="quick-emotion-suggestions" class="chip-wrap"></div>
-          </div>
-
-          <div class="custom-tag-editor">
-            <p class="group-title">躯体感受可自由填写</p>
-            <div class="tag-entry-row">
-              <input id="quick-somatic-input" type="text" placeholder="输入躯体感受，例如：头皮发麻、肩膀很紧">
-              <input id="quick-somatic-color" type="color" value="#4b8fbb" aria-label="躯体标签颜色">
-              <button class="ghost-button" id="quick-add-somatic-tag" type="button">新增躯体标签</button>
-            </div>
-            <div id="quick-somatic-suggestions" class="chip-wrap"></div>
-          </div>
-
-          <div class="form-block">
-            <label class="field-label" for="quick-intensity">这次情绪波动强度</label>
-            <div class="range-wrap">
-              <input id="quick-intensity" type="range" min="1" max="5" step="1" value="3">
-              <div class="range-meta">
-                <span>轻微</span>
-                <strong id="quick-intensity-label">3 · 有点明显</strong>
-                <span>强烈</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="form-block">
-            <label class="field-label" for="quick-note">一句话备注</label>
-            <textarea id="quick-note" rows="3" placeholder="例如：晚饭前突然开始胸口发紧，想到明天的事情很慌。"></textarea>
-          </div>
-
-          <div class="save-row">
-            <button class="primary-button" id="save-quick-btn" type="button">保存这次快速记录</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Custom Projects</p>
-              <h3>自定义项目</h3>
-            </div>
-            <span class="hint-tag">保留内置项目，也支持继续扩展</span>
-          </div>
-          <form id="custom-project-form" class="stack-form">
-            <div class="form-block">
-              <label class="field-label" for="custom-project-name">项目名称</label>
-              <input id="custom-project-name" type="text" maxlength="20" placeholder="例如：饭量、学习、社交">
-            </div>
-            <div class="form-block">
-              <label class="field-label" for="custom-project-tags">标签</label>
-              <textarea id="custom-project-tags" rows="2" placeholder="用逗号分隔，例如：吃不下, 正常, 暴食"></textarea>
-            </div>
-            <div class="form-inline">
-              <div class="form-block">
-                <label class="field-label" for="custom-project-color">主题色</label>
-                <input id="custom-project-color" type="color" value="#3b8f89">
-              </div>
-              <button class="secondary-button align-end" type="submit">新增项目</button>
-            </div>
-          </form>
-          <div id="custom-project-list" class="custom-project-list"></div>
-        </div>
-
       </section>
 
       <section class="screen" id="screen-guided" aria-labelledby="guided-title">
         <div class="card guided-intro">
-          <p class="eyebrow">Guided Mode</p>
-          <h2 id="guided-title">按步骤陪自己走一遍</h2>
-          <p class="body-copy">
-            在开始前，先闭上眼睛感受一下：身体哪个部位最有感觉？把手放在那里，慢一点也没关系。
-          </p>
-          <div class="guided-badges">
-            <span class="hint-tag">会自动联动到躯体化症状项目</span>
-            <span class="hint-tag">当前时段：<span id="guided-slot-label">--</span></span>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Guided Mode</p>
+              <h2 id="guided-title">引导记录</h2>
+            </div>
+            <span class="hint-tag">当前时段 · <span id="guided-slot-label">--</span></span>
           </div>
+          <p class="body-copy">
+            先停一下，感受自己此刻最明显的身体感觉。我们会按四步慢慢梳理，不需要一次想得很完整。
+          </p>
         </div>
 
         <div class="card">
           <div class="stepper" id="guided-stepper"></div>
           <div id="guided-step-content" class="guided-content"></div>
           <div class="step-actions">
-            <button class="ghost-button" id="guided-reset-btn" type="button">清空本次引导</button>
+            <button class="ghost-button" id="guided-reset-btn" type="button">重新开始这次引导</button>
             <button class="ghost-button" id="guided-prev-btn" type="button">上一步</button>
             <button class="secondary-button" id="guided-next-btn" type="button">下一步</button>
-            <button class="primary-button hidden" id="guided-save-btn" type="button">保存引导记录</button>
+            <button class="primary-button hidden" id="guided-save-btn" type="button">保存这次引导记录</button>
           </div>
         </div>
       </section>
@@ -163,7 +210,7 @@
           <div class="section-heading">
             <div>
               <p class="eyebrow">Insights</p>
-              <h2 id="stats-title">看见最近的变化</h2>
+              <h2 id="stats-title">最近的变化</h2>
             </div>
           </div>
           <div class="segmented-control" id="stats-range-selector">
@@ -214,7 +261,7 @@
           <div class="section-heading">
             <div>
               <p class="eyebrow">Somatic Clues</p>
-              <h3>常见躯体化提示</h3>
+              <h3>常见躯体感受</h3>
             </div>
           </div>
           <div id="somatic-frequency" class="pill-list"></div>
@@ -235,128 +282,8 @@
       </section>
 
       <section class="screen" id="screen-settings" aria-labelledby="settings-title">
-        <div class="card">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Export</p>
-              <h3>导出文字版记录</h3>
-            </div>
-            <span class="hint-tag">适合复制给 AI 做周报分析</span>
-          </div>
-          <div class="export-grid">
-            <div class="form-block">
-              <label class="field-label" for="export-from">开始日期</label>
-              <input id="export-from" type="date">
-            </div>
-            <div class="form-block">
-              <label class="field-label" for="export-to">结束日期</label>
-              <input id="export-to" type="date">
-            </div>
-          </div>
-          <div class="form-block">
-            <label class="field-label">导出项目</label>
-            <div id="export-project-filters" class="filter-wrap"></div>
-          </div>
-          <div class="button-row">
-            <button class="secondary-button" id="generate-export-btn" type="button">生成文字</button>
-            <button class="ghost-button" id="copy-export-btn" type="button">复制文字</button>
-            <button class="ghost-button" id="download-export-btn" type="button">下载 txt</button>
-          </div>
-          <div class="form-block">
-            <label class="field-label" for="export-preview">导出预览</label>
-            <textarea id="export-preview" rows="14" readonly placeholder="生成后会显示在这里。"></textarea>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Install</p>
-              <h2 id="settings-title">安装与设置</h2>
-            </div>
-            <span class="hint-tag">后续可直接部署给他人使用</span>
-          </div>
-          <p class="body-copy">
-            在支持的浏览器里，你可以把网页“添加到主屏幕”，获得接近小型 app 的使用体验。
-          </p>
-          <div class="button-row">
-            <button class="secondary-button" id="install-app-btn" type="button">安装到主屏幕</button>
-            <button class="ghost-button" id="refresh-app-btn" type="button">刷新离线缓存</button>
-          </div>
-          <p id="install-status" class="body-copy compact"></p>
-        </div>
-
-        <div class="card">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Backup</p>
-              <h3>数据备份与恢复</h3>
-            </div>
-            <span class="hint-tag">建议每周备份一次</span>
-          </div>
-          <p class="body-copy">
-            备份会导出完整 JSON（项目、记录、设置）。恢复时会覆盖当前本地数据。
-          </p>
-          <div class="button-row">
-            <button class="secondary-button" id="backup-export-btn" type="button">导出 JSON 备份</button>
-            <button class="ghost-button" id="backup-import-btn" type="button">选择并恢复备份</button>
-            <input id="backup-import-file" type="file" accept="application/json" class="visually-hidden">
-          </div>
-          <p id="backup-status" class="body-copy compact"></p>
-        </div>
-
-        <div class="card">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Reminders</p>
-              <h3>时段提醒</h3>
-            </div>
-          </div>
-          <p class="body-copy">
-            这是基础提醒：当你打开网页时，系统会根据时段检查是否漏记并提醒。浏览器通知需要先授权。
-          </p>
-          <div class="switch-row">
-            <label class="field-label" for="reminder-enabled">启用提醒</label>
-            <input id="reminder-enabled" type="checkbox">
-          </div>
-          <div class="time-grid">
-            <div class="form-block">
-              <label class="field-label" for="reminder-time-late-night">凌晨提醒</label>
-              <input id="reminder-time-late-night" type="time">
-            </div>
-            <div class="form-block">
-              <label class="field-label" for="reminder-time-morning">上午提醒</label>
-              <input id="reminder-time-morning" type="time">
-            </div>
-            <div class="form-block">
-              <label class="field-label" for="reminder-time-afternoon">下午提醒</label>
-              <input id="reminder-time-afternoon" type="time">
-            </div>
-            <div class="form-block">
-              <label class="field-label" for="reminder-time-evening">晚上提醒</label>
-              <input id="reminder-time-evening" type="time">
-            </div>
-          </div>
-          <div class="button-row">
-            <button class="ghost-button" id="notification-permission-btn" type="button">开启通知权限</button>
-            <button class="ghost-button" id="reminder-test-btn" type="button">发送测试提醒</button>
-          </div>
-          <p id="reminder-status" class="body-copy compact"></p>
-        </div>
-
-        <div class="card">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Safety</p>
-              <h3>隐私与紧急提示</h3>
-            </div>
-          </div>
-          <div class="notice-list">
-            <p>这款工具用于自我记录，不替代医疗诊断或治疗建议。</p>
-            <p>你的记录默认仅保存在当前浏览器本地，除非你主动导出或上传。</p>
-            <p>如果出现自伤或伤人风险，请立即联系当地紧急救援电话（例如中国大陆可拨打 120 / 110）或尽快就医。</p>
-          </div>
-        </div>
+        <h2 id="settings-title" class="visually-hidden">设置</h2>
+        <div id="settings-view" class="settings-view"></div>
       </section>
     </main>
 

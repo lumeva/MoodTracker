@@ -1,4 +1,4 @@
-const CACHE_NAME = "mood-tracker-cache-v1";
+const CACHE_NAME = "mood-tracker-cache-v2";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -29,8 +29,8 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-  const url = new URL(event.request.url);
 
+  const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
   if (event.request.mode === "navigate") {
