@@ -374,6 +374,7 @@ p {
 .settings-row:hover,
 .project-row:hover,
 .suggestion-item:hover,
+.color-swatch:hover,
 .choice-chip:hover,
 .chip-remove:hover,
 .entry-card-remove:hover {
@@ -433,6 +434,11 @@ p {
 .selected-strip {
   min-height: 52px;
   align-items: center;
+}
+
+.selected-strip:empty,
+.entry-strip:empty {
+  display: none;
 }
 
 .selected-placeholder,
@@ -538,6 +544,10 @@ p {
   background: rgba(255, 250, 245, 0.9);
 }
 
+.compact-block {
+  margin-top: 0;
+}
+
 .reference-picker {
   display: grid;
   gap: 12px;
@@ -577,6 +587,30 @@ p {
 
 .reference-action {
   width: 100%;
+}
+
+.color-swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.color-swatch {
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: 50%;
+  background: var(--swatch-color, var(--secondary));
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 0 0 1px rgba(73, 57, 45, 0.12),
+    0 6px 14px rgba(83, 62, 45, 0.08);
+  cursor: pointer;
+}
+
+.color-swatch.active {
+  box-shadow:
+    0 0 0 2px rgba(73, 57, 45, 0.22),
+    0 6px 14px rgba(83, 62, 45, 0.08);
 }
 
 .entry-card {
@@ -647,9 +681,27 @@ p {
 }
 
 .guided-intro {
+  padding: 18px 20px;
   background:
     linear-gradient(135deg, rgba(255, 250, 244, 0.92), rgba(240, 249, 247, 0.9)),
     var(--surface);
+}
+
+.guided-intro .eyebrow {
+  margin-bottom: 4px;
+}
+
+.guided-intro h2 {
+  font-size: 24px;
+}
+
+.guided-intro .section-heading {
+  margin-bottom: 8px;
+}
+
+.guided-intro .body-copy {
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .stepper {

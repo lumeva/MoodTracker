@@ -281,14 +281,14 @@
       projectId: "emotion",
       selectedIds: ui.quick.selectedEmotionIds,
       removeDataset: { action: "remove-quick-tag", kind: "emotion" },
-      emptyText: "还没有选择情绪标签。上方输入框支持联想，也可以直接回车新增自己的情绪命名。"
+      emptyText: ""
     });
 
     renderSelectedStrip(els.quickSomaticSelected, {
       projectId: "somatic",
       selectedIds: ui.quick.selectedSomaticIds,
       removeDataset: { action: "remove-quick-tag", kind: "somatic" },
-      emptyText: "还没有选择躯体感觉。你可以直接写下自己身体里的感觉。"
+      emptyText: ""
     });
   }
 
@@ -298,7 +298,7 @@
       projectId: "emotion",
       query: ui.quick.emotionQuery,
       selectedIds: ui.quick.selectedEmotionIds,
-      emptyText: "这里会出现你之前用过的情绪标签联想。"
+      emptyText: "这里会显示你常用的情绪标签，也会根据输入补充参考词。"
     });
   }
 
@@ -533,7 +533,21 @@
       <div class="step-card">
         <div class="step-copy">
           <h3>给情绪命名，并为它打一个强度</h3>
-          <p class="body-copy">你可以直接输入，也可以从下面的一级、二级、三级分类里选一个最接近的参考词。</p>
+          <p class="body-copy">先用自己的语言描述此刻的情绪，再决定是否借助参考分类来细化它。</p>
+        </div>
+
+        <div>
+          <p class="group-title">输入情绪</p>
+          <div class="input-shell">
+            <input
+              id="guided-emotion-input"
+              type="text"
+              autocomplete="off"
+              placeholder="例如：伤心、麻木、担心、安心"
+              value="${escapeHtml(ui.guided.emotionQuery)}"
+            >
+          </div>
+          <div id="guided-emotion-suggestions" class="suggestion-list"></div>
         </div>
 
         <div>
@@ -604,22 +618,8 @@
           <p class="field-subtle">
             ${hasReferenceSelection
               ? `当前参考：${escapeHtml(category.label)} · ${escapeHtml(group.label)} · ${escapeHtml(ui.guided.referenceEmotionTagLabel)}`
-              : "参考分类不会一开始全部进入你的标签库，只有在你选中或主动创建后才会入库。"}
+              : "参考分类会帮助你细化情绪标签，但不会强制覆盖你自己的命名。"}
           </p>
-        </div>
-
-        <div>
-          <p class="group-title">输入情绪</p>
-          <div class="input-shell">
-            <input
-              id="guided-emotion-input"
-              type="text"
-              autocomplete="off"
-              placeholder="例如：伤心、麻木、担心、安心"
-              value="${escapeHtml(ui.guided.emotionQuery)}"
-            >
-          </div>
-          <div id="guided-emotion-suggestions" class="suggestion-list"></div>
         </div>
 
         <div class="form-block">
@@ -945,6 +945,78 @@
     });
   }
 
+  function getLibraryTagDraft(projectId) {
+    const drafts = ui.settings.drafts.library;
+
+    if (projectId === "emotion") {
+      return drafts.emotion;
+    }
+
+    return drafts.somatic;
+  }
+
+  function getProjectTagDraft(projectId) {
+    if (!ui.settings.drafts.projectTags[projectId]) {
+      const project = getProject(projectId);
+      ui.settings.drafts.projectTags[projectId] = {
+        name: "",
+        color: project ? project.color : "#4f8f8b"
+      };
+    }
+
+    return ui.settings.drafts.projectTags[projectId];
+  }
+
+  function getProjectDetailDraft(projectId) {
+    if (!ui.settings.drafts.projectDetails[projectId]) {
+      const project = getProject(projectId);
+      ui.settings.drafts.projectDetails[projectId] = {
+        name: project ? project.name : "",
+        color: project ? project.color : "#4f8f8b"
+      };
+    }
+
+    return ui.settings.drafts.projectDetails[projectId];
+  }
+
+  function resetProjectDetailDraft(projectId) {
+    const project = getProject(projectId);
+
+    if (!project) {
+      delete ui.settings.drafts.projectDetails[projectId];
+      return;
+    }
+
+    ui.settings.drafts.projectDetails[projectId] = {
+      name: project.name,
+      color: project.color
+    };
+  }
+
+  function colorSwatchesMarkup({ colors, currentColor, action, dataset }) {
+    return `
+      <div class="color-swatch-row">
+        ${colors.map((color) => {
+          const attrs = Object.entries({ ...(dataset || {}), color })
+            .map(([key, value]) => `data-${toDataAttr(key)}="${escapeHtml(String(value))}"`)
+            .join(" ");
+
+          return `
+            <button
+              type="button"
+              class="color-swatch ${safeColor(currentColor) === safeColor(color) ? "active" : ""}"
+              data-settings-action="${action}"
+              ${attrs}
+              aria-label="选择颜色 ${safeColor(color)}"
+              title="${safeColor(color)}"
+              style="--swatch-color:${safeColor(color)}"
+            ></button>
+          `;
+        }).join("")}
+      </div>
+    `;
+  }
+
   function settingsLibraryMarkup() {
     const tab = ui.settings.libraryTab;
 
@@ -952,15 +1024,74 @@
 
     if (tab === "emotion" || tab === "somatic") {
       const project = getProject(tab);
+      const draft = getLibraryTagDraft(project.id);
+      const recommendedColors = project.id === "emotion"
+        ? getEmotionCategoryPalette(draft.categoryId)
+        : getSomaticColorPalette();
+
       content = `
         <div class="manager-panel">
-          <p class="settings-note">这里会收集你已经用过或主动创建的标签。参考词不会在一开始全部铺开，颜色也可以之后再改。</p>
-          <div class="input-grid">
-            <input id="library-tag-name" type="text" placeholder="输入一个新标签">
+          <p class="settings-note">这里会收集你已经用过或主动创建的标签。颜色有推荐方案，但始终可以由你自己决定。</p>
+          <div class="form-block compact-block">
+            <label class="field-label" for="library-tag-name">标签名称</label>
+            <input
+              id="library-tag-name"
+              type="text"
+              value="${escapeHtml(draft.name)}"
+              placeholder="${project.id === "emotion" ? "输入一个新情绪标签" : "输入一个新躯体标签"}"
+            >
           </div>
-          <button class="secondary-button" type="button" data-settings-action="add-library-tag" data-project-id="${project.id}">
-            新增${project.name}标签
-          </button>
+          ${project.id === "emotion" ? `
+            <div class="input-grid two-up">
+              <div class="form-block inline-gap">
+                <label class="field-label" for="library-tag-category">所属情绪大类</label>
+                <select id="library-tag-category" class="reference-select">
+                  <option value="">请选择情绪大类</option>
+                  ${DATA.emotionCategories.map((category) => `
+                    <option value="${escapeHtml(category.id)}" ${draft.categoryId === category.id ? "selected" : ""}>
+                      ${escapeHtml(getEmotionCategoryOptionLabel(category))}
+                    </option>
+                  `).join("")}
+                </select>
+              </div>
+              <div class="form-block inline-gap">
+                <label class="field-label" for="library-tag-color">标签颜色</label>
+                <input id="library-tag-color" type="color" value="${safeColor(draft.color)}" aria-label="标签颜色">
+              </div>
+            </div>
+            <div class="form-block inline-gap">
+              <label class="field-label">推荐色系</label>
+              ${colorSwatchesMarkup({
+                colors: recommendedColors,
+                currentColor: draft.color,
+                action: "choose-library-tag-color",
+                dataset: { projectId: project.id }
+              })}
+              <p class="field-subtle">${escapeHtml(getEmotionCategoryHelperText(draft.categoryId))}</p>
+            </div>
+          ` : `
+            <div class="input-grid two-up">
+              <div class="form-block inline-gap">
+                <label class="field-label" for="library-tag-color">标签颜色</label>
+                <input id="library-tag-color" type="color" value="${safeColor(draft.color)}" aria-label="标签颜色">
+              </div>
+            </div>
+            <div class="form-block inline-gap">
+              <label class="field-label">推荐颜色</label>
+              ${colorSwatchesMarkup({
+                colors: recommendedColors,
+                currentColor: draft.color,
+                action: "choose-library-tag-color",
+                dataset: { projectId: project.id }
+              })}
+              <p class="field-subtle">推荐使用低刺激、易区分的颜色，方便你在记录和回看时快速识别。</p>
+            </div>
+          `}
+          <div class="button-row">
+            <button class="secondary-button" type="button" data-settings-action="add-library-tag" data-project-id="${project.id}">
+              新增${project.name}标签
+            </button>
+          </div>
         </div>
         <div class="manager-list">
           ${managerTagRowsMarkup(project.id)}
@@ -976,9 +1107,14 @@
         <div class="manager-panel">
           <p class="settings-note">先创建项目，再点进去逐个添加标签和颜色。</p>
           <div class="input-grid two-up">
-            <input id="new-project-name" type="text" placeholder="例如：学习、饭量、社交">
-            <input id="new-project-color" type="color" value="#4f8f8b" aria-label="项目主题色">
+            <input id="new-project-name" type="text" value="${escapeHtml(ui.settings.drafts.newProject.name)}" placeholder="例如：学习、饭量、社交">
+            <input id="new-project-color" type="color" value="${safeColor(ui.settings.drafts.newProject.color)}" aria-label="项目主题色">
           </div>
+          ${colorSwatchesMarkup({
+            colors: PROJECT_COLOR_PALETTE,
+            currentColor: ui.settings.drafts.newProject.color,
+            action: "choose-new-project-color"
+          })}
           <button class="secondary-button" type="button" data-settings-action="create-project">新增项目</button>
         </div>
         <div class="manager-list">
@@ -1012,16 +1148,19 @@
       return settingsLibraryMarkup();
     }
 
+    const projectDraft = getProjectDetailDraft(project.id);
+    const draft = getProjectTagDraft(project.id);
+
     return settingsShellMarkup({
       eyebrow: "Custom Project",
-      title: project.name,
+      title: projectDraft.name || project.name,
       description: "在这里管理项目名称、主题色，以及它下面的标签。",
       backTo: "library",
       content: `
         <div class="manager-panel">
           <div class="input-grid two-up">
-            <input id="project-detail-name" type="text" value="${escapeHtml(project.name)}" placeholder="项目名称">
-            <input id="project-detail-color" type="color" value="${safeColor(project.color)}" aria-label="项目主题色">
+            <input id="project-detail-name" type="text" value="${escapeHtml(projectDraft.name)}" placeholder="项目名称">
+            <input id="project-detail-color" type="color" value="${safeColor(projectDraft.color)}" aria-label="项目主题色">
           </div>
           <div class="button-row">
             <button class="secondary-button" type="button" data-settings-action="save-project-detail" data-project-id="${project.id}">保存项目设置</button>
@@ -1031,9 +1170,16 @@
 
         <div class="manager-panel">
           <p class="settings-note">标签一次添加一个，后面还可以继续补充，颜色也能随时再调。</p>
-          <div class="input-grid">
-            <input id="project-detail-tag-name" type="text" placeholder="例如：数学、英语、语文">
+          <div class="input-grid two-up">
+            <input id="project-detail-tag-name" type="text" value="${escapeHtml(draft.name)}" placeholder="例如：数学、英语、语文">
+            <input id="project-detail-tag-color" type="color" value="${safeColor(draft.color)}" aria-label="标签颜色">
           </div>
+          ${colorSwatchesMarkup({
+            colors: getSuggestedPaletteForColor(projectDraft.color),
+            currentColor: draft.color,
+            action: "choose-project-tag-color",
+            dataset: { projectId: project.id }
+          })}
           <button class="secondary-button" type="button" data-settings-action="add-project-tag" data-project-id="${project.id}">新增项目标签</button>
         </div>
 
@@ -1261,6 +1407,7 @@
     const project = getProject(projectId);
 
     if (!project || !selectedIds.length) {
+      if (!emptyText) return "";
       return `<div class="selected-placeholder">${escapeHtml(emptyText)}</div>`;
     }
 
@@ -1281,6 +1428,7 @@
         .join(" ");
       return `
         <div class="selected-chip">
+          <span class="tag-dot" style="--dot-color:${safeColor(tag.color || project.color)}"></span>
           <span class="selected-chip__label">${escapeHtml(tag.label)}</span>
           <button
             type="button"
@@ -1322,6 +1470,9 @@
         type: "tag",
         title: `新增 ${trimmed}`,
         meta: "创建自定义标签",
+        dotColor: projectId === "emotion"
+          ? getEmotionCategoryDefaultColor("")
+          : (projectId === "somatic" ? getSomaticColorPalette()[2] : project.color),
         projectId,
         createLabel: trimmed,
         isCreate: true
@@ -1338,6 +1489,7 @@
         type: "tag",
         title: tag.label,
         meta,
+        dotColor: tag.color || project.color,
         projectId,
         tagId: tag.id
       }));
@@ -1349,6 +1501,7 @@
         type: "tag",
         title: tag.label,
         meta: `${tag.categoryName || "参考词"}${tag.groupLabel ? ` · ${tag.groupLabel}` : ""}`,
+        dotColor: tag.color,
         projectId,
         referenceLabel: tag.label,
         referenceCategoryId: tag.categoryId || "",
@@ -1732,6 +1885,26 @@
       return;
     }
 
+    if (action === "choose-library-tag-color") {
+      const draft = getLibraryTagDraft(actionButton.dataset.projectId);
+      draft.color = safeColor(actionButton.dataset.color, draft.color);
+      renderSettings();
+      return;
+    }
+
+    if (action === "choose-new-project-color") {
+      ui.settings.drafts.newProject.color = safeColor(actionButton.dataset.color, ui.settings.drafts.newProject.color);
+      renderSettings();
+      return;
+    }
+
+    if (action === "choose-project-tag-color") {
+      const draft = getProjectTagDraft(actionButton.dataset.projectId);
+      draft.color = safeColor(actionButton.dataset.color, draft.color);
+      renderSettings();
+      return;
+    }
+
     if (action === "add-library-tag") {
       addLibraryTag(actionButton.dataset.projectId);
       return;
@@ -1744,6 +1917,7 @@
 
     if (action === "open-project") {
       ui.settings.projectId = actionButton.dataset.projectId;
+      resetProjectDetailDraft(ui.settings.projectId);
       ui.settings.page = "project-detail";
       renderSettings();
       return;
@@ -1810,6 +1984,53 @@
 
     if (target.id === "export-to") {
       ui.export.to = target.value;
+      return;
+    }
+
+    if (target.id === "library-tag-name") {
+      getLibraryTagDraft(ui.settings.libraryTab).name = target.value;
+      return;
+    }
+
+    if (target.id === "library-tag-color") {
+      getLibraryTagDraft(ui.settings.libraryTab).color = target.value;
+      return;
+    }
+
+    if (target.id === "new-project-name") {
+      ui.settings.drafts.newProject.name = target.value;
+      return;
+    }
+
+    if (target.id === "new-project-color") {
+      ui.settings.drafts.newProject.color = target.value;
+      return;
+    }
+
+    if (target.id === "project-detail-tag-name") {
+      getProjectTagDraft(ui.settings.projectId).name = target.value;
+      return;
+    }
+
+    if (target.id === "project-detail-name") {
+      getProjectDetailDraft(ui.settings.projectId).name = target.value;
+      return;
+    }
+
+    if (target.id === "project-detail-color") {
+      const projectDetailDraft = getProjectDetailDraft(ui.settings.projectId);
+      projectDetailDraft.color = target.value;
+
+      const projectTagDraft = getProjectTagDraft(ui.settings.projectId);
+      if (!projectTagDraft.name.trim()) {
+        projectTagDraft.color = target.value;
+      }
+      return;
+    }
+
+    if (target.id === "project-detail-tag-color") {
+      getProjectTagDraft(ui.settings.projectId).color = target.value;
+      return;
     }
   }
 
@@ -1818,6 +2039,24 @@
 
     if (target.dataset.settingsAction === "tag-color") {
       updateTagColor(target.dataset.projectId, target.dataset.tagId, target.value);
+      return;
+    }
+
+    if (target.id === "library-tag-category") {
+      const draft = getLibraryTagDraft("emotion");
+      draft.categoryId = target.value;
+      draft.color = safeColor(getEmotionCategoryDefaultColor(target.value), draft.color);
+      renderSettings();
+      return;
+    }
+
+    if (
+      target.id === "library-tag-color"
+      || target.id === "new-project-color"
+      || target.id === "project-detail-color"
+      || target.id === "project-detail-tag-color"
+    ) {
+      renderSettings();
       return;
     }
 
@@ -1936,20 +2175,69 @@
     addGuidedTagById("emotion", tag.id);
   }
 
-  function ensureUserFacingTag(projectId, label) {
+  function resetLibraryTagDraft(projectId) {
+    if (projectId === "emotion") {
+      ui.settings.drafts.library.emotion = {
+        name: "",
+        categoryId: "",
+        color: getEmotionCategoryDefaultColor("")
+      };
+      return;
+    }
+
+    ui.settings.drafts.library.somatic = {
+      name: "",
+      color: getSomaticColorPalette()[2]
+    };
+  }
+
+  function ensureUserFacingTag(projectId, label, options) {
+    const opts = options || {};
     const existing = findTagByLabel(projectId, label);
     if (existing) return existing;
 
     const reference = findReferenceTagByLabel(projectId, label);
     if (reference) {
-      return ensureReferenceTag(projectId, reference);
+      if (!opts.categoryId && !opts.color) {
+        return ensureReferenceTag(projectId, reference);
+      }
+
+      const referenceCategory = opts.categoryId
+        ? getEmotionReferenceCategory(opts.categoryId)
+        : null;
+      const keepReferenceGroup = !opts.categoryId || opts.categoryId === reference.categoryId;
+
+      return ensureTag(
+        projectId,
+        label,
+        opts.color || reference.color,
+        {
+          categoryId: opts.categoryId || reference.categoryId || null,
+          categoryName: referenceCategory ? referenceCategory.label : (reference.categoryName || null),
+          groupLabel: keepReferenceGroup ? (reference.groupLabel || null) : null
+        }
+      );
+    }
+
+    if (projectId === "emotion" && opts.categoryId) {
+      const category = getEmotionReferenceCategory(opts.categoryId);
+      return ensureTag(
+        projectId,
+        label,
+        opts.color || getEmotionCategoryDefaultColor(opts.categoryId),
+        {
+          categoryId: category ? category.id : null,
+          categoryName: category ? category.label : "自定义",
+          groupLabel: null
+        }
+      );
     }
 
     const project = getProject(projectId);
     return ensureTag(
       projectId,
       label,
-      project ? project.color : "#4f8f8b",
+      opts.color || (project ? project.color : "#4f8f8b"),
       projectId === "emotion" ? { categoryName: "自定义" } : {}
     );
   }
@@ -1961,7 +2249,7 @@
     return ensureTag(
       projectId,
       reference.label,
-      project.color,
+      reference.color || project.color,
       {
         categoryId: reference.categoryId || null,
         categoryName: reference.categoryName || null,
@@ -2168,24 +2456,32 @@
   }
 
   function addLibraryTag(projectId) {
-    const nameInput = document.getElementById("library-tag-name");
-    const label = nameInput ? nameInput.value.trim() : "";
+    const draft = getLibraryTagDraft(projectId);
+    const label = draft.name.trim();
 
     if (!label) {
       toast("先输入一个标签名称。");
       return;
     }
 
-    ensureUserFacingTag(projectId, label);
+    if (projectId === "emotion" && !draft.categoryId) {
+      toast("先为这个情绪标签选择一个所属大类。");
+      return;
+    }
+
+    ensureUserFacingTag(projectId, label, {
+      categoryId: projectId === "emotion" ? draft.categoryId : null,
+      color: draft.color
+    });
+
+    resetLibraryTagDraft(projectId);
     renderApp();
     toast("标签已经添加");
   }
 
   function createProjectFromSettings() {
-    const nameInput = document.getElementById("new-project-name");
-    const colorInput = document.getElementById("new-project-color");
-    const name = nameInput ? nameInput.value.trim() : "";
-    const color = colorInput ? colorInput.value : pickProjectColor(name);
+    const name = ui.settings.drafts.newProject.name.trim();
+    const color = ui.settings.drafts.newProject.color || pickProjectColor(name);
 
     if (!name) {
       toast("先写一个项目名称。");
@@ -2198,6 +2494,11 @@
     }
 
     const project = createCustomProject(name, color);
+    ui.settings.drafts.newProject = {
+      name: "",
+      color: "#4f8f8b"
+    };
+    resetProjectDetailDraft(project.id);
     ui.settings.projectId = project.id;
     ui.settings.page = "project-detail";
     renderApp();
@@ -2208,10 +2509,9 @@
     const project = getProject(projectId);
     if (!project || isBuiltinProject(project.id)) return;
 
-    const nameInput = document.getElementById("project-detail-name");
-    const colorInput = document.getElementById("project-detail-color");
-    const name = nameInput ? nameInput.value.trim() : project.name;
-    const color = colorInput ? colorInput.value : project.color;
+    const projectDraft = getProjectDetailDraft(projectId);
+    const name = projectDraft.name.trim();
+    const color = projectDraft.color || project.color;
 
     if (!name) {
       toast("项目名称不能为空。");
@@ -2226,6 +2526,10 @@
 
     project.name = name;
     project.color = safeColor(color, project.color);
+    resetProjectDetailDraft(project.id);
+    if (ui.settings.drafts.projectTags[project.id] && !ui.settings.drafts.projectTags[project.id].name.trim()) {
+      ui.settings.drafts.projectTags[project.id].color = project.color;
+    }
     saveState();
     renderApp();
     toast("项目设置已保存");
@@ -2235,9 +2539,9 @@
     const project = getProject(projectId);
     if (!project || isBuiltinProject(project.id)) return;
 
-    const nameInput = document.getElementById("project-detail-tag-name");
-    const label = nameInput ? nameInput.value.trim() : "";
-    const color = project.color;
+    const draft = getProjectTagDraft(project.id);
+    const label = draft.name.trim();
+    const color = draft.color || project.color;
 
     if (!label) {
       toast("先输入标签名称。");
@@ -2245,6 +2549,10 @@
     }
 
     ensureTag(projectId, label, color);
+    ui.settings.drafts.projectTags[projectId] = {
+      name: "",
+      color: project.color
+    };
     renderApp();
     toast("项目标签已添加");
   }
@@ -2258,6 +2566,8 @@
 
     state.projects = state.projects.filter((item) => item.id !== projectId);
     ui.export.selectedProjectIds = ui.export.selectedProjectIds.filter((id) => id !== projectId);
+    delete ui.settings.drafts.projectDetails[projectId];
+    delete ui.settings.drafts.projectTags[projectId];
 
     if (ui.other.selectedProjectId === projectId) {
       ui.other.selectedProjectId = "";
@@ -3231,6 +3541,28 @@
     localStorage.setItem(DATA.storageKey, JSON.stringify(state));
   }
 
+  function createInitialSettingsDrafts() {
+    return {
+      library: {
+        emotion: {
+          name: "",
+          categoryId: "",
+          color: getEmotionCategoryDefaultColor("")
+        },
+        somatic: {
+          name: "",
+          color: getSomaticColorPalette()[2]
+        }
+      },
+      newProject: {
+        name: "",
+        color: "#4f8f8b"
+      },
+      projectTags: {},
+      projectDetails: {}
+    };
+  }
+
   function createInitialUi() {
     return {
       activeScreen: "home",
@@ -3254,7 +3586,8 @@
       settings: {
         page: "root",
         libraryTab: "emotion",
-        projectId: ""
+        projectId: "",
+        drafts: createInitialSettingsDrafts()
       },
       export: {
         from: "",
@@ -3451,6 +3784,42 @@
     return `${Number(parts[1])}/${Number(parts[2])}`;
   }
 
+  function getEmotionCategoryDefaultColor(categoryId) {
+    const category = getEmotionReferenceCategory(categoryId);
+    return category ? safeColor(category.color, "#d87354") : "#d87354";
+  }
+
+  function getEmotionCategoryPalette(categoryId) {
+    return getSuggestedPaletteForColor(getEmotionCategoryDefaultColor(categoryId));
+  }
+
+  function getSomaticColorPalette() {
+    return getSuggestedPaletteForColor("#5a84c6");
+  }
+
+  function getEmotionCategoryHelperText(categoryId) {
+    const category = getEmotionReferenceCategory(categoryId);
+    if (!category) {
+      return "先选择一个情绪大类，系统会推荐对应色系；你仍然可以再手动调整。";
+    }
+
+    const groups = category.groups.map((item) => item.label).slice(0, 4);
+    return `当前色系：${category.label}。常见细分包括 ${groups.join("、")} 等。`;
+  }
+
+  function getSuggestedPaletteForColor(baseColor) {
+    const shades = [
+      mixColor(baseColor, "#ffffff", 0.78),
+      mixColor(baseColor, "#ffffff", 0.56),
+      mixColor(baseColor, "#ffffff", 0.32),
+      safeColor(baseColor),
+      mixColor(baseColor, "#000000", 0.16),
+      mixColor(baseColor, "#000000", 0.28)
+    ];
+
+    return [...new Set(shades.map((color) => safeColor(color, baseColor)))];
+  }
+
   function pickProjectColor(seed) {
     const value = normalizeLabel(seed);
     let hash = 0;
@@ -3512,6 +3881,34 @@
   function safeColor(value, fallback) {
     const raw = String(value || "").trim();
     return /^#[0-9a-fA-F]{6}$/.test(raw) ? raw : (fallback || "#4f8f8b");
+  }
+
+  function mixColor(colorA, colorB, ratio) {
+    const from = hexToRgb(safeColor(colorA, "#4f8f8b"));
+    const to = hexToRgb(safeColor(colorB, "#ffffff"));
+    const amount = Math.max(0, Math.min(1, Number(ratio) || 0));
+
+    return rgbToHex({
+      r: Math.round(from.r + ((to.r - from.r) * amount)),
+      g: Math.round(from.g + ((to.g - from.g) * amount)),
+      b: Math.round(from.b + ((to.b - from.b) * amount))
+    });
+  }
+
+  function hexToRgb(hex) {
+    const value = safeColor(hex, "#4f8f8b").slice(1);
+    return {
+      r: Number.parseInt(value.slice(0, 2), 16),
+      g: Number.parseInt(value.slice(2, 4), 16),
+      b: Number.parseInt(value.slice(4, 6), 16)
+    };
+  }
+
+  function rgbToHex({ r, g, b }) {
+    return `#${[r, g, b].map((value) => {
+      const next = Math.max(0, Math.min(255, value));
+      return next.toString(16).padStart(2, "0");
+    }).join("")}`;
   }
 
   function escapeHtml(value) {

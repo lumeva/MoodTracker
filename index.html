@@ -20,9 +20,7 @@
   <div class="app-shell">
     <header class="topbar">
       <div>
-        <p class="eyebrow">Mood Tracker</p>
         <h1>心绪记录</h1>
-        <p class="topbar-meta">当前记录会自动归入系统时间对应的时段，不需要手动选择时间。</p>
       </div>
       <span class="hint-tag topbar-slot" id="current-slot-tag">当前时段 · --</span>
     </header>
@@ -32,19 +30,19 @@
         <div class="card home-primary-card">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Quick Check-In</p>
-              <h2 id="home-title">首页快速记录</h2>
+              <p class="eyebrow">即时记录</p>
+              <h2 id="home-title">快速记录</h2>
             </div>
-            <span class="hint-tag">自动锁定当前时段</span>
+            <span class="hint-tag">当前时段已锁定</span>
           </div>
           <p class="body-copy">
-            这次记录只需要抓住当下最重要的感受。情绪和躯体标签都支持自由输入，也会联想你之前记录过的内容。
+            用几个词，记录你此刻最明显的情绪与身体感受。你可以直接输入，也可以从常用标签中快速选择。
           </p>
 
           <div class="field-panel">
             <div class="field-header">
-              <h3>情绪可自由填写</h3>
-              <p class="field-subtle">输入时会联想你以前用过的情绪标签，情绪之轮只作为参考。</p>
+              <h3>情绪记录</h3>
+              <p class="field-subtle">用一个或几个词，描述你此刻最明显的情绪状态。</p>
             </div>
             <div id="quick-emotion-selected" class="selected-strip"></div>
             <div class="input-shell">
@@ -60,8 +58,8 @@
 
           <div class="field-panel">
             <div class="field-header">
-              <h3>躯体感受可自由填写</h3>
-              <p class="field-subtle">同样支持联想和补全，例如：胸口发紧、肩膀很紧、头皮发麻。</p>
+              <h3>躯体感受</h3>
+              <p class="field-subtle">记录身体里最明显的感觉，例如紧、堵、麻、热、酸或疲惫。</p>
             </div>
             <div id="quick-somatic-selected" class="selected-strip"></div>
             <div class="input-shell">
@@ -104,12 +102,12 @@
         <div class="card home-secondary-card">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Other Projects</p>
+              <p class="eyebrow">扩展记录</p>
               <h2>其他项目记录</h2>
             </div>
           </div>
           <p class="body-copy">
-            这里专门用来记录学习、饭量、社交等其他项目。每点一次“添加这一条其他项目”，就会保存一条独立记录。
+            你也可以记录学习、饮食、社交、睡眠等与状态有关的内容。每保存一次，都会生成一条独立记录。
           </p>
 
           <div id="other-records-selected" class="entry-strip"></div>
@@ -156,10 +154,10 @@
 
         <div class="hero-card home-summary-card">
           <div>
-            <p class="eyebrow">此刻记录</p>
-            <h2>让记录发生在当下</h2>
+            <p class="eyebrow">记录节奏</p>
+            <h2>先留下此刻，再慢慢回看变化</h2>
             <p class="hero-copy">
-              当前记录会自动归入系统时间对应的时段，不需要手动选时间。补记和时段模板会放在下一轮迭代里。
+              当记录变得更轻、更快，你会更容易捕捉到真实的波动与变化。持续几天后，再回头看也会更清楚。
             </p>
           </div>
           <div class="hero-stats">
@@ -183,13 +181,13 @@
         <div class="card guided-intro">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Guided Mode</p>
+              <p class="eyebrow">四步梳理</p>
               <h2 id="guided-title">引导记录</h2>
             </div>
             <span class="hint-tag">当前时段 · <span id="guided-slot-label">--</span></span>
           </div>
           <p class="body-copy">
-            先停一下，感受自己此刻最明显的身体感觉。我们会按四步慢慢梳理，不需要一次想得很完整。
+            先感受此刻最明显的身体信号，我们会按四步慢慢梳理，不需要一次就说得很完整。
           </p>
         </div>
 
