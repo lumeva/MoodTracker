@@ -66,10 +66,12 @@
     els.quickEmotionSelected = document.getElementById("quick-emotion-selected");
     els.quickEmotionInput = document.getElementById("quick-emotion-input");
     els.quickEmotionSuggestions = document.getElementById("quick-emotion-suggestions");
+    els.quickEmotionCreator = document.getElementById("quick-emotion-creator");
 
     els.quickSomaticSelected = document.getElementById("quick-somatic-selected");
     els.quickSomaticInput = document.getElementById("quick-somatic-input");
     els.quickSomaticSuggestions = document.getElementById("quick-somatic-suggestions");
+    els.quickSomaticCreator = document.getElementById("quick-somatic-creator");
 
     els.quickIntensity = document.getElementById("quick-intensity");
     els.quickIntensityLabel = document.getElementById("quick-intensity-label");
@@ -79,8 +81,10 @@
     els.otherRecordsSelected = document.getElementById("other-records-selected");
     els.otherProjectInput = document.getElementById("other-project-input");
     els.otherProjectSuggestions = document.getElementById("other-project-suggestions");
+    els.otherProjectCreator = document.getElementById("other-project-creator");
     els.otherTagInput = document.getElementById("other-tag-input");
     els.otherTagSuggestions = document.getElementById("other-tag-suggestions");
+    els.otherTagCreator = document.getElementById("other-tag-creator");
     els.otherNote = document.getElementById("other-note");
     els.addOtherEntryBtn = document.getElementById("add-other-entry-btn");
 
@@ -116,12 +120,16 @@
 
     bindAutocompleteInput(els.quickEmotionInput, (value) => {
       ui.quick.emotionQuery = value;
+      syncCreatorDraft("quick-emotion", value, { projectId: "emotion" });
       renderQuickEmotionSuggestions();
+      renderQuickEmotionCreator();
     }, () => commitQuickTag("emotion"));
 
     bindAutocompleteInput(els.quickSomaticInput, (value) => {
       ui.quick.somaticQuery = value;
+      syncCreatorDraft("quick-somatic", value, { projectId: "somatic" });
       renderQuickSomaticSuggestions();
+      renderQuickSomaticCreator();
     }, () => commitQuickTag("somatic"));
 
     els.quickEmotionSuggestions.addEventListener("click", onSuggestionClick);
@@ -148,8 +156,12 @@
         ui.other.tagQuery = "";
         els.otherTagInput.value = "";
       }
+      syncCreatorDraft("other-project", value);
+      syncCreatorDraft("other-tag", ui.other.tagQuery, { projectId: ui.other.selectedProjectId });
       renderOtherProjectSuggestions();
+      renderOtherProjectCreator();
       renderOtherTagSuggestions();
+      renderOtherTagCreator();
     }, commitOtherProjectQuery);
 
     bindAutocompleteInput(els.otherTagInput, (value) => {
@@ -157,7 +169,9 @@
       if (!tagNameMatchesOtherSelection(value)) {
         ui.other.selectedTagId = "";
       }
+      syncCreatorDraft("other-tag", value, { projectId: ui.other.selectedProjectId });
       renderOtherTagSuggestions();
+      renderOtherTagCreator();
     }, commitOtherTagQuery);
 
     els.otherProjectSuggestions.addEventListener("click", onSuggestionClick);
@@ -170,6 +184,8 @@
 
     els.guidedResetBtn.addEventListener("click", () => {
       ui.guided = newGuidedDraft();
+      clearCreatorDraft("guided-emotion");
+      clearCreatorDraft("guided-somatic");
       renderGuided();
       toast("已经重新开始这次引导");
     });
@@ -199,6 +215,10 @@
     els.settingsView.addEventListener("click", onSettingsClick);
     els.settingsView.addEventListener("input", onSettingsInput);
     els.settingsView.addEventListener("change", onSettingsChange);
+
+    document.addEventListener("click", onCreatorClick);
+    document.addEventListener("input", onCreatorInput);
+    document.addEventListener("change", onCreatorChange);
   }
 
   function bindAutocompleteInput(inputEl, onChange, onCommit) {
@@ -269,7 +289,9 @@
     renderQuickIntensityLabel();
     renderQuickSelectedStrips();
     renderQuickEmotionSuggestions();
+    renderQuickEmotionCreator();
     renderQuickSomaticSuggestions();
+    renderQuickSomaticCreator();
   }
 
   function renderQuickIntensityLabel() {
@@ -302,6 +324,10 @@
     });
   }
 
+  function renderQuickEmotionCreator() {
+    renderInlineCreator(els.quickEmotionCreator, "quick-emotion", getCreatorDraft("quick-emotion"));
+  }
+
   function renderQuickSomaticSuggestions() {
     renderTagSuggestionList(els.quickSomaticSuggestions, {
       context: "quick-somatic",
@@ -312,19 +338,26 @@
     });
   }
 
+  function renderQuickSomaticCreator() {
+    renderInlineCreator(els.quickSomaticCreator, "quick-somatic", getCreatorDraft("quick-somatic"));
+  }
+
   function renderOtherProjectInputs() {
     els.otherProjectInput.value = ui.other.projectQuery;
     els.otherTagInput.value = ui.other.tagQuery;
     els.otherNote.value = ui.other.note;
 
     renderOtherProjectSuggestions();
+    renderOtherProjectCreator();
     renderOtherTagSuggestions();
+    renderOtherTagCreator();
   }
 
   function renderOtherProjectSuggestions() {
     const query = ui.other.projectQuery.trim();
     const suggestions = getProjectSuggestions(query);
     const usage = getUsageMaps();
+    const creatorDraft = getCreatorDraft("other-project");
     const parts = [];
 
     if (query && !findCustomProjectByName(query)) {
@@ -334,7 +367,7 @@
           type: "project",
           title: `创建新项目“${query}”`,
           meta: "创建后就可以继续给它添加标签",
-          dotColor: pickProjectColor(query),
+          dotColor: creatorDraft ? creatorDraft.color : pickProjectColor(query),
           createName: query,
           isCreate: true
         })
@@ -359,6 +392,10 @@
       : `<div class="empty-inline">选择已有项目，或者直接输入一个新项目名。</div>`;
   }
 
+  function renderOtherProjectCreator() {
+    renderInlineCreator(els.otherProjectCreator, "other-project", getCreatorDraft("other-project"));
+  }
+
   function renderOtherTagSuggestions() {
     const project = getSelectedOtherProject(false);
     if (!project && !ui.other.projectQuery.trim()) {
@@ -378,6 +415,10 @@
       selectedIds: ui.other.selectedTagId ? [ui.other.selectedTagId] : [],
       emptyText: `这里会联想“${project.name}”项目里已经用过的标签。`
     });
+  }
+
+  function renderOtherTagCreator() {
+    renderInlineCreator(els.otherTagCreator, "other-tag", getCreatorDraft("other-tag"));
   }
 
   function renderRecentOtherEntries() {
@@ -447,6 +488,7 @@
         selectedIds: ui.guided.selectedSomaticIds,
         emptyText: "这里会联想你以前记录过的躯体感觉，也会补一些参考词。"
       });
+      renderInlineCreator(document.getElementById("guided-somatic-creator"), "guided-somatic", getCreatorDraft("guided-somatic"));
     }
 
     if (ui.guided.step === 1) {
@@ -457,6 +499,7 @@
         selectedIds: ui.guided.selectedEmotionIds,
         emptyText: "这里会联想你以前记录过的情绪标签。"
       });
+      renderInlineCreator(document.getElementById("guided-emotion-creator"), "guided-emotion", getCreatorDraft("guided-emotion"));
 
       const intensityLabel = document.getElementById("guided-intensity-label");
       if (intensityLabel) {
@@ -473,6 +516,8 @@
   }
 
   function guidedBodyStepMarkup() {
+    const bodyAreaColors = getBodyAreaColors();
+
     return `
       <div class="step-card">
         <div class="step-copy">
@@ -486,7 +531,8 @@
             ${DATA.bodyAreas.map((area) => choiceChipMarkup({
               label: area,
               active: ui.guided.bodyAreas.includes(area),
-              dataset: { guidedBodyArea: area }
+              dataset: { guidedBodyArea: area },
+              dotColor: bodyAreaColors[area] || "#5a84c6"
             })).join("")}
           </div>
         </div>
@@ -498,7 +544,7 @@
               projectId: "somatic",
               selectedIds: ui.guided.selectedSomaticIds,
               removeDataset: { guidedRemove: "somatic" },
-              emptyText: "你可以从下方联想里选，也可以自己输入新的躯体感觉。"
+              emptyText: ""
             })}
           </div>
         </div>
@@ -515,6 +561,7 @@
             >
           </div>
           <div id="guided-somatic-suggestions" class="suggestion-list"></div>
+          <div id="guided-somatic-creator" class="inline-creator-host"></div>
         </div>
       </div>
     `;
@@ -528,6 +575,11 @@
       : null;
     const tagOptions = group ? group.tags : [];
     const hasReferenceSelection = Boolean(category && group && ui.guided.referenceEmotionTagLabel);
+    const categoryColor = category ? safeColor(category.color, "#d87354") : getEmotionCategoryDefaultColor("");
+    const groupColor = category && group ? getEmotionGroupColor(category.id, group.label) : categoryColor;
+    const tagColor = category && group && ui.guided.referenceEmotionTagLabel
+      ? getEmotionReferenceTagColor(category.id, group.label, ui.guided.referenceEmotionTagLabel)
+      : groupColor;
 
     return `
       <div class="step-card">
@@ -548,6 +600,7 @@
             >
           </div>
           <div id="guided-emotion-suggestions" class="suggestion-list"></div>
+          <div id="guided-emotion-creator" class="inline-creator-host"></div>
         </div>
 
         <div>
@@ -557,7 +610,7 @@
               projectId: "emotion",
               selectedIds: ui.guided.selectedEmotionIds,
               removeDataset: { guidedRemove: "emotion" },
-              emptyText: "还没有选情绪。可以先从最接近的词开始。"
+              emptyText: ""
             })}
           </div>
         </div>
@@ -566,8 +619,11 @@
           <p class="group-title">情绪参考分类</p>
           <div class="select-grid">
             <div class="form-block inline-gap">
-              <label class="field-label" for="guided-emotion-category">一级分类</label>
-              <select id="guided-emotion-category" class="reference-select">
+              <label class="field-label reference-label" for="guided-emotion-category">
+                <span class="tag-dot" style="--dot-color:${safeColor(categoryColor)}"></span>
+                <span>一级分类</span>
+              </label>
+              <select id="guided-emotion-category" class="reference-select" style="${referenceSelectStyle(categoryColor)}">
                 <option value="">先选情绪大类</option>
                 ${DATA.emotionCategories.map((item) => `
                   <option value="${escapeHtml(item.id)}" ${ui.guided.referenceEmotionCategoryId === item.id ? "selected" : ""}>
@@ -577,10 +633,14 @@
               </select>
             </div>
             <div class="form-block inline-gap">
-              <label class="field-label" for="guided-emotion-group">二级分类</label>
+              <label class="field-label reference-label" for="guided-emotion-group">
+                <span class="tag-dot" style="--dot-color:${safeColor(groupColor)}"></span>
+                <span>二级分类</span>
+              </label>
               <select
                 id="guided-emotion-group"
                 class="reference-select"
+                style="${referenceSelectStyle(groupColor)}"
                 ${category ? "" : "disabled"}
               >
                 <option value="">再选细分类</option>
@@ -592,10 +652,14 @@
               </select>
             </div>
             <div class="form-block inline-gap">
-              <label class="field-label" for="guided-emotion-tag">三级分类</label>
+              <label class="field-label reference-label" for="guided-emotion-tag">
+                <span class="tag-dot" style="--dot-color:${safeColor(tagColor)}"></span>
+                <span>三级分类</span>
+              </label>
               <select
                 id="guided-emotion-tag"
                 class="reference-select"
+                style="${referenceSelectStyle(tagColor)}"
                 ${group ? "" : "disabled"}
               >
                 <option value="">最后选具体情绪</option>
@@ -618,7 +682,7 @@
           <p class="field-subtle">
             ${hasReferenceSelection
               ? `当前参考：${escapeHtml(category.label)} · ${escapeHtml(group.label)} · ${escapeHtml(ui.guided.referenceEmotionTagLabel)}`
-              : "参考分类会帮助你细化情绪标签，但不会强制覆盖你自己的命名。"}
+              : "按顺序选到三级后，就可以直接加入已选情绪。"}
           </p>
         </div>
 
@@ -876,7 +940,7 @@
     return `
       <div class="card settings-shell">
         <div class="settings-header">
-          <p class="eyebrow">Settings</p>
+          <p class="eyebrow">设置中心</p>
           <h2>设置</h2>
           <p class="body-copy">把复杂功能都收在这里，首页只保留最常用的记录动作。</p>
         </div>
@@ -899,7 +963,7 @@
     ensureExportSelectionValid();
 
     return settingsShellMarkup({
-      eyebrow: "Export",
+      eyebrow: "导出",
       title: "导出记录",
       description: "按时间范围筛选项目，整理成适合复制给 AI 或自己回看的文字版。",
       backTo: "root",
@@ -1017,6 +1081,399 @@
     `;
   }
 
+  function getCreatorDraft(context) {
+    return ui.creators[context] || null;
+  }
+
+  function clearCreatorDraft(context) {
+    delete ui.creators[context];
+  }
+
+  function syncCreatorDraft(context, label, options) {
+    const trimmed = String(label || "").trim();
+    const projectId = options && options.projectId ? options.projectId : "";
+
+    if (!trimmed || creatorMatchesExisting(context, trimmed, projectId)) {
+      clearCreatorDraft(context);
+      return null;
+    }
+
+    const current = getCreatorDraft(context);
+    const canReuse = current
+      && normalizeLabel(current.label) === normalizeLabel(trimmed)
+      && (current.projectId || "") === projectId;
+
+    if (canReuse) {
+      current.label = trimmed;
+      return current;
+    }
+
+    ui.creators[context] = createCreatorDraft(context, trimmed, projectId, current);
+    return ui.creators[context];
+  }
+
+  function creatorMatchesExisting(context, label, projectId) {
+    if (context === "other-project") {
+      return Boolean(findCustomProjectByName(label));
+    }
+
+    if (!projectId) {
+      return true;
+    }
+
+    return Boolean(findTagByLabel(projectId, label) || findReferenceTagByLabel(projectId, label));
+  }
+
+  function createCreatorDraft(context, label, projectId, previous) {
+    if (context === "quick-emotion" || context === "guided-emotion") {
+      const categoryId = previous && previous.categoryId
+        ? previous.categoryId
+        : (context === "guided-emotion" ? ui.guided.referenceEmotionCategoryId : "");
+      return {
+        label,
+        projectId: "emotion",
+        categoryId,
+        color: previous && previous.color
+          ? previous.color
+          : getEmotionCategoryDefaultColor(categoryId)
+      };
+    }
+
+    if (context === "quick-somatic" || context === "guided-somatic") {
+      return {
+        label,
+        projectId: "somatic",
+        color: previous && previous.color ? previous.color : getSomaticColorPalette()[2]
+      };
+    }
+
+    if (context === "other-project") {
+      return {
+        label,
+        projectId: "",
+        color: previous && previous.color ? previous.color : pickProjectColor(label)
+      };
+    }
+
+    const project = getProject(projectId);
+    return {
+      label,
+      projectId,
+      color: previous && previous.color ? previous.color : (project ? project.color : "#4f8f8b")
+    };
+  }
+
+  function renderInlineCreator(container, context, draft) {
+    if (!container) return;
+    container.innerHTML = draft ? inlineCreatorMarkup(context, draft) : "";
+  }
+
+  function inlineCreatorMarkup(context, draft) {
+    const palette = getCreatorPalette(context, draft);
+    const title = getCreatorTitle(context);
+    const copy = getCreatorCopy(context, draft);
+    const confirmLabel = getCreatorConfirmLabel(context);
+    const previewColor = getCreatorPreviewColor(context, draft);
+
+    return `
+      <div class="inline-creator" data-creator-context="${context}">
+        <div class="inline-creator-head">
+          <div class="inline-creator-copy">
+            <p class="group-title">${escapeHtml(title)}</p>
+            <p class="field-subtle">${escapeHtml(copy)}</p>
+          </div>
+          <span class="inline-creator-chip">
+            <span class="tag-dot" style="--dot-color:${safeColor(previewColor)}"></span>
+            <span>${escapeHtml(draft.label)}</span>
+          </span>
+        </div>
+
+        ${(context === "quick-emotion" || context === "guided-emotion") ? `
+          <div class="input-grid two-up">
+            <div class="form-block inline-gap">
+              <label class="field-label" for="creator-category-${context}">所属情绪大类</label>
+              <select
+                id="creator-category-${context}"
+                class="reference-select"
+                data-creator-context="${context}"
+                data-creator-field="categoryId"
+              >
+                <option value="">请选择情绪大类</option>
+                ${DATA.emotionCategories.map((category) => `
+                  <option value="${escapeHtml(category.id)}" ${draft.categoryId === category.id ? "selected" : ""}>
+                    ${escapeHtml(getEmotionCategoryOptionLabel(category))}
+                  </option>
+                `).join("")}
+              </select>
+            </div>
+            <div class="form-block inline-gap">
+              <label class="field-label" for="creator-color-${context}">标签颜色</label>
+              <input
+                id="creator-color-${context}"
+                type="color"
+                value="${safeColor(draft.color)}"
+                data-creator-context="${context}"
+                data-creator-field="color"
+                aria-label="标签颜色"
+              >
+            </div>
+          </div>
+          <div class="form-block inline-gap">
+            <label class="field-label">推荐色系</label>
+            ${creatorColorSwatchesMarkup(context, palette, draft.color)}
+            <p class="field-subtle">${escapeHtml(getEmotionCategoryHelperText(draft.categoryId))}</p>
+          </div>
+        ` : `
+          <div class="form-block inline-gap">
+            <label class="field-label" for="creator-color-${context}">${context === "other-project" ? "项目颜色" : "标签颜色"}</label>
+            <input
+              id="creator-color-${context}"
+              type="color"
+              value="${safeColor(draft.color)}"
+              data-creator-context="${context}"
+              data-creator-field="color"
+              aria-label="${context === "other-project" ? "项目颜色" : "标签颜色"}"
+            >
+          </div>
+          <div class="form-block inline-gap">
+            <label class="field-label">推荐颜色</label>
+            ${creatorColorSwatchesMarkup(context, palette, draft.color)}
+          </div>
+        `}
+
+        <div class="button-row inline-creator-actions">
+          <button type="button" class="secondary-button" data-creator-action="confirm" data-creator-context="${context}">${escapeHtml(confirmLabel)}</button>
+          <button type="button" class="ghost-button" data-creator-action="cancel" data-creator-context="${context}">先收起</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function creatorColorSwatchesMarkup(context, colors, currentColor) {
+    return `
+      <div class="color-swatch-row">
+        ${colors.map((color) => `
+          <button
+            type="button"
+            class="color-swatch ${safeColor(currentColor) === safeColor(color) ? "active" : ""}"
+            data-creator-action="choose-color"
+            data-creator-context="${context}"
+            data-color="${safeColor(color)}"
+            aria-label="选择颜色 ${safeColor(color)}"
+            title="${safeColor(color)}"
+            style="--swatch-color:${safeColor(color)}"
+          ></button>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function getCreatorPalette(context, draft) {
+    if (context === "quick-emotion" || context === "guided-emotion") {
+      return getEmotionCategoryPalette(draft.categoryId);
+    }
+
+    if (context === "quick-somatic" || context === "guided-somatic") {
+      return getSomaticColorPalette();
+    }
+
+    if (context === "other-project") {
+      return PROJECT_COLOR_PALETTE;
+    }
+
+    const project = getProject(draft.projectId);
+    return getSuggestedPaletteForColor(project ? project.color : "#4f8f8b");
+  }
+
+  function getCreatorPreviewColor(context, draft) {
+    if (context === "quick-emotion" || context === "guided-emotion") {
+      return draft.color || getEmotionCategoryDefaultColor(draft.categoryId);
+    }
+
+    return draft.color || "#4f8f8b";
+  }
+
+  function getCreatorTitle(context) {
+    if (context === "quick-emotion" || context === "guided-emotion") return "新建情绪标签";
+    if (context === "quick-somatic" || context === "guided-somatic") return "新建躯体标签";
+    if (context === "other-project") return "新建项目";
+    return "新建项目标签";
+  }
+
+  function getCreatorCopy(context, draft) {
+    if (context === "quick-emotion" || context === "guided-emotion") {
+      return `先为“${draft.label}”选择一个情绪大类，系统会推荐对应色系。`;
+    }
+
+    if (context === "quick-somatic" || context === "guided-somatic") {
+      return `为“${draft.label}”挑一个更容易识别的颜色。`;
+    }
+
+    if (context === "other-project") {
+      return `“${draft.label}”会作为一个独立项目保存，颜色可随时再改。`;
+    }
+
+    const project = getProject(draft.projectId);
+    return `“${draft.label}”会加入“${project ? project.name : "当前项目"}”下面。`;
+  }
+
+  function getCreatorConfirmLabel(context) {
+    if (context === "other-project") return "创建并选中项目";
+    if (context === "other-tag") return "创建并选中标签";
+    return "创建并加入";
+  }
+
+  function renderCreatorContext(context) {
+    if (context === "quick-emotion") {
+      renderQuickEmotionSuggestions();
+      renderQuickEmotionCreator();
+      return;
+    }
+
+    if (context === "quick-somatic") {
+      renderQuickSomaticSuggestions();
+      renderQuickSomaticCreator();
+      return;
+    }
+
+    if (context === "guided-emotion" || context === "guided-somatic") {
+      renderGuidedStepExtras();
+      return;
+    }
+
+    if (context === "other-project") {
+      renderOtherProjectSuggestions();
+      renderOtherProjectCreator();
+      return;
+    }
+
+    if (context === "other-tag") {
+      renderOtherTagSuggestions();
+      renderOtherTagCreator();
+    }
+  }
+
+  function onCreatorClick(event) {
+    const actionButton = event.target.closest("[data-creator-action]");
+    if (!actionButton) return;
+
+    const context = actionButton.dataset.creatorContext;
+    const draft = getCreatorDraft(context);
+    if (!draft) return;
+
+    if (actionButton.dataset.creatorAction === "choose-color") {
+      draft.color = safeColor(actionButton.dataset.color, draft.color);
+      renderCreatorContext(context);
+      return;
+    }
+
+    if (actionButton.dataset.creatorAction === "cancel") {
+      clearCreatorDraft(context);
+      renderCreatorContext(context);
+      return;
+    }
+
+    if (actionButton.dataset.creatorAction === "confirm") {
+      confirmCreator(context);
+    }
+  }
+
+  function onCreatorInput(event) {
+    const target = event.target;
+    const context = target.dataset.creatorContext;
+    const field = target.dataset.creatorField;
+    if (!context || !field) return;
+
+    const draft = getCreatorDraft(context);
+    if (!draft) return;
+
+    if (field === "color") {
+      draft.color = safeColor(target.value, draft.color);
+      renderCreatorContext(context);
+    }
+  }
+
+  function onCreatorChange(event) {
+    const target = event.target;
+    const context = target.dataset.creatorContext;
+    const field = target.dataset.creatorField;
+    if (!context || !field) return;
+
+    const draft = getCreatorDraft(context);
+    if (!draft) return;
+
+    if (field === "categoryId") {
+      draft.categoryId = target.value;
+      draft.color = getEmotionCategoryDefaultColor(target.value);
+      renderCreatorContext(context);
+      return;
+    }
+
+    if (field === "color") {
+      draft.color = safeColor(target.value, draft.color);
+      renderCreatorContext(context);
+    }
+  }
+
+  function confirmCreator(context) {
+    const draft = getCreatorDraft(context);
+    if (!draft || !draft.label) return false;
+
+    if (context === "other-project") {
+      const project = createCustomProject(draft.label, draft.color);
+      clearCreatorDraft(context);
+      selectOtherProject(project.id);
+      renderHome();
+      toast(`已创建项目：${project.name}`);
+      return true;
+    }
+
+    if (context === "other-tag") {
+      const project = getProject(draft.projectId);
+      if (!project) {
+        toast("先选定一个项目，再创建项目标签。");
+        return false;
+      }
+      const tag = ensureTag(project.id, draft.label, draft.color);
+      clearCreatorDraft(context);
+      selectOtherTag(project.id, tag.id);
+      renderHome();
+      toast(`已创建标签：${tag.label}`);
+      return true;
+    }
+
+    if ((context === "quick-emotion" || context === "guided-emotion") && !draft.categoryId) {
+      toast("先为这个情绪标签选择一个所属大类。");
+      return false;
+    }
+
+    const tag = ensureUserFacingTag(
+      draft.projectId,
+      draft.label,
+      {
+        categoryId: draft.categoryId || null,
+        color: draft.color
+      }
+    );
+
+    if (!tag) return false;
+
+    clearCreatorDraft(context);
+
+    if (context === "quick-emotion") {
+      addQuickTagById("emotion", tag.id);
+    } else if (context === "quick-somatic") {
+      addQuickTagById("somatic", tag.id);
+    } else if (context === "guided-emotion") {
+      addGuidedTagById("emotion", tag.id);
+    } else {
+      addGuidedTagById("somatic", tag.id);
+    }
+
+    toast(`已创建标签：${tag.label}`);
+    return true;
+  }
+
   function settingsLibraryMarkup() {
     const tab = ui.settings.libraryTab;
 
@@ -1124,7 +1581,7 @@
     }
 
     return settingsShellMarkup({
-      eyebrow: "Library",
+      eyebrow: "标签库",
       title: "标签与项目管理",
       description: "这里统一管理情绪、躯体和其他自定义项目。",
       backTo: "root",
@@ -1152,7 +1609,7 @@
     const draft = getProjectTagDraft(project.id);
 
     return settingsShellMarkup({
-      eyebrow: "Custom Project",
+      eyebrow: "项目设置",
       title: projectDraft.name || project.name,
       description: "在这里管理项目名称、主题色，以及它下面的标签。",
       backTo: "library",
@@ -1194,7 +1651,7 @@
     const reminders = state.settings.reminders || deepCopy(DEFAULT_REMINDERS);
 
     return settingsShellMarkup({
-      eyebrow: "Reminders",
+      eyebrow: "提醒",
       title: "提醒设置",
       description: "按时段检查今天有没有漏记，帮助你把记录慢慢变成习惯。",
       backTo: "root",
@@ -1225,7 +1682,7 @@
 
   function settingsBackupMarkup() {
     return settingsShellMarkup({
-      eyebrow: "Backup",
+      eyebrow: "备份",
       title: "备份与恢复",
       description: "记录默认只保存在本机浏览器里，所以备份很重要。",
       backTo: "root",
@@ -1244,7 +1701,7 @@
 
   function settingsInstallMarkup() {
     return settingsShellMarkup({
-      eyebrow: "Install",
+      eyebrow: "安装",
       title: "安装到主屏幕",
       description: "安装后会更像一个小型 App，也更适合在手机上打开和记录。",
       backTo: "root",
@@ -1262,7 +1719,7 @@
 
   function settingsPrivacyMarkup() {
     return settingsShellMarkup({
-      eyebrow: "Privacy",
+      eyebrow: "隐私说明",
       title: "隐私与紧急提示",
       description: "这里放的是使用上的重要提醒，不会替代专业帮助。",
       backTo: "root",
@@ -1461,6 +1918,7 @@
     const referenceSuggestions = (trimmed || projectId === "somatic")
       ? getReferenceTagSuggestions(projectId, trimmed, selectedIds || [], Math.max(0, 8 - suggestions.length))
       : [];
+    const creatorDraft = getCreatorDraft(context);
     const usage = getUsageMaps();
     const parts = [];
 
@@ -1470,9 +1928,11 @@
         type: "tag",
         title: `新增 ${trimmed}`,
         meta: "创建自定义标签",
-        dotColor: projectId === "emotion"
-          ? getEmotionCategoryDefaultColor("")
-          : (projectId === "somatic" ? getSomaticColorPalette()[2] : project.color),
+        dotColor: creatorDraft
+          ? creatorDraft.color
+          : (projectId === "emotion"
+            ? getEmotionCategoryDefaultColor("")
+            : (projectId === "somatic" ? getSomaticColorPalette()[2] : project.color)),
         projectId,
         createLabel: trimmed,
         isCreate: true
@@ -1658,10 +2118,8 @@
     if (dataset.suggestionType === "project") {
       if (dataset.context !== "other-project") return;
       if (dataset.createName) {
-        const project = createCustomProject(dataset.createName, pickProjectColor(dataset.createName));
-        selectOtherProject(project.id);
-        renderHome();
-        toast(`已创建项目：${project.name}`);
+        syncCreatorDraft("other-project", dataset.createName);
+        confirmCreator("other-project");
         return;
       }
 
@@ -1684,8 +2142,9 @@
       });
       tagId = createdTag ? createdTag.id : "";
     } else if (dataset.createLabel) {
-      const createdTag = ensureUserFacingTag(projectId, dataset.createLabel);
-      tagId = createdTag ? createdTag.id : "";
+      syncCreatorDraft(dataset.context, dataset.createLabel, { projectId });
+      if (!confirmCreator(dataset.context)) return;
+      return;
     }
 
     if (!tagId && dataset.suggestionType === "tag") return;
@@ -1766,12 +2225,14 @@
 
     if (target.id === "guided-somatic-input") {
       ui.guided.somaticQuery = target.value;
+      syncCreatorDraft("guided-somatic", target.value, { projectId: "somatic" });
       renderGuidedStepExtras();
       return;
     }
 
     if (target.id === "guided-emotion-input") {
       ui.guided.emotionQuery = target.value;
+      syncCreatorDraft("guided-emotion", target.value, { projectId: "emotion" });
       renderGuidedStepExtras();
       return;
     }
@@ -2102,12 +2563,25 @@
 
   function commitQuickTag(kind) {
     const projectId = kind === "emotion" ? "emotion" : "somatic";
+    const context = kind === "emotion" ? "quick-emotion" : "quick-somatic";
     const query = kind === "emotion" ? ui.quick.emotionQuery.trim() : ui.quick.somaticQuery.trim();
     if (!query) return;
 
-    const tag = findTagByLabel(projectId, query) || ensureUserFacingTag(projectId, query);
+    const existing = findTagByLabel(projectId, query);
+    if (existing) {
+      addQuickTagById(kind, existing.id);
+      return;
+    }
 
-    addQuickTagById(kind, tag.id);
+    const reference = findReferenceTagByLabel(projectId, query);
+    if (reference) {
+      const tag = ensureReferenceTag(projectId, reference);
+      if (tag) addQuickTagById(kind, tag.id);
+      return;
+    }
+
+    syncCreatorDraft(context, query, { projectId });
+    confirmCreator(context);
   }
 
   function addQuickTagById(kind, tagId) {
@@ -2115,26 +2589,43 @@
     if (!list.includes(tagId)) list.push(tagId);
 
     if (kind === "emotion") {
+      clearCreatorDraft("quick-emotion");
       ui.quick.emotionQuery = "";
       els.quickEmotionInput.value = "";
     } else {
+      clearCreatorDraft("quick-somatic");
       ui.quick.somaticQuery = "";
       els.quickSomaticInput.value = "";
     }
 
     renderQuickSelectedStrips();
     renderQuickEmotionSuggestions();
+    renderQuickEmotionCreator();
     renderQuickSomaticSuggestions();
+    renderQuickSomaticCreator();
   }
 
   function commitGuidedTag(kind) {
     const projectId = kind === "emotion" ? "emotion" : "somatic";
+    const context = kind === "emotion" ? "guided-emotion" : "guided-somatic";
     const query = kind === "emotion" ? ui.guided.emotionQuery.trim() : ui.guided.somaticQuery.trim();
     if (!query) return;
 
-    const tag = findTagByLabel(projectId, query) || ensureUserFacingTag(projectId, query);
+    const existing = findTagByLabel(projectId, query);
+    if (existing) {
+      addGuidedTagById(kind, existing.id);
+      return;
+    }
 
-    addGuidedTagById(kind, tag.id);
+    const reference = findReferenceTagByLabel(projectId, query);
+    if (reference) {
+      const tag = ensureReferenceTag(projectId, reference);
+      if (tag) addGuidedTagById(kind, tag.id);
+      return;
+    }
+
+    syncCreatorDraft(context, query, { projectId });
+    confirmCreator(context);
   }
 
   function addGuidedTagById(kind, tagId) {
@@ -2142,8 +2633,10 @@
     if (!list.includes(tagId)) list.push(tagId);
 
     if (kind === "emotion") {
+      clearCreatorDraft("guided-emotion");
       ui.guided.emotionQuery = "";
     } else {
+      clearCreatorDraft("guided-somatic");
       ui.guided.somaticQuery = "";
     }
 
@@ -2262,10 +2755,15 @@
     const query = ui.other.projectQuery.trim();
     if (!query) return;
 
-    const project = findCustomProjectByName(query) || getProjectSuggestions(query)[0];
-    if (!project) return;
-    selectOtherProject(project.id);
-    renderHome();
+    const project = findCustomProjectByName(query);
+    if (project) {
+      selectOtherProject(project.id);
+      renderHome();
+      return;
+    }
+
+    syncCreatorDraft("other-project", query);
+    confirmCreator("other-project");
   }
 
   function commitOtherTagQuery() {
@@ -2278,15 +2776,23 @@
     const query = ui.other.tagQuery.trim();
     if (!query) return;
 
-    const tag = findTagByLabel(project.id, query) || ensureTag(project.id, query, project.color);
-    selectOtherTag(project.id, tag.id);
-    renderHome();
+    const tag = findTagByLabel(project.id, query);
+    if (tag) {
+      selectOtherTag(project.id, tag.id);
+      renderHome();
+      return;
+    }
+
+    syncCreatorDraft("other-tag", query, { projectId: project.id });
+    confirmCreator("other-tag");
   }
 
   function selectOtherProject(projectId) {
     const project = getProject(projectId);
     if (!project) return;
 
+    clearCreatorDraft("other-project");
+    clearCreatorDraft("other-tag");
     ui.other.selectedProjectId = project.id;
     ui.other.projectQuery = project.name;
     ui.other.selectedTagId = "";
@@ -2297,6 +2803,7 @@
     const tag = getTag(projectId, tagId);
     if (!tag) return;
 
+    clearCreatorDraft("other-tag");
     ui.other.selectedProjectId = projectId;
     ui.other.projectQuery = getProject(projectId).name;
     ui.other.selectedTagId = tag.id;
@@ -2345,6 +2852,8 @@
 
     state.records.push(record);
     saveState();
+    clearCreatorDraft("quick-emotion");
+    clearCreatorDraft("quick-somatic");
     ui.quick = {
       emotionQuery: "",
       somaticQuery: "",
@@ -2394,6 +2903,7 @@
     state.records.push(record);
     saveState();
 
+    clearCreatorDraft("other-tag");
     ui.other.tagQuery = "";
     ui.other.selectedTagId = "";
     ui.other.note = "";
@@ -2450,6 +2960,8 @@
 
     state.records.push(record);
     saveState();
+    clearCreatorDraft("guided-emotion");
+    clearCreatorDraft("guided-somatic");
     ui.guided = newGuidedDraft();
     renderApp();
     toast("这次引导记录已经保存");
@@ -3101,6 +3613,55 @@
     return pieces.join(" ");
   }
 
+  function getBodyAreaColors() {
+    return {
+      "头部": "#6c84d9",
+      "眼睛": "#7a74d6",
+      "喉咙": "#5f84c6",
+      "胸口": "#d66761",
+      "心口": "#d95b7c",
+      "胃部": "#d9914e",
+      "腹部": "#cc9b52",
+      "肩颈": "#5b9c8d",
+      "手臂": "#5f9c6f",
+      "腿部": "#6ea0a6",
+      "全身": "#8b7ca8"
+    };
+  }
+
+  function getEmotionGroupColor(categoryId, groupLabel) {
+    const category = getEmotionReferenceCategory(categoryId);
+    if (!category) return getEmotionCategoryDefaultColor(categoryId);
+
+    const index = Math.max(0, category.groups.findIndex((item) => item.label === groupLabel));
+    const palette = getEmotionCategoryPalette(categoryId);
+    const cycle = Math.max(1, palette.length - 1);
+    const base = palette[1 + (index % cycle)] || palette[palette.length - 1] || category.color;
+    const round = Math.floor(index / cycle);
+
+    return round ? mixColor(base, "#000000", Math.min(0.08 * round, 0.22)) : safeColor(base, category.color);
+  }
+
+  function getEmotionReferenceTagColor(categoryId, groupLabel, tagLabel) {
+    const category = getEmotionReferenceCategory(categoryId);
+    if (!category) return getEmotionCategoryDefaultColor(categoryId);
+
+    const group = category.groups.find((item) => item.label === groupLabel);
+    if (!group) return getEmotionGroupColor(categoryId, groupLabel);
+
+    const index = Math.max(0, group.tags.findIndex((item) => item === tagLabel));
+    const groupColor = getEmotionGroupColor(categoryId, groupLabel);
+    return index % 2 === 0
+      ? mixColor(groupColor, "#ffffff", 0.12)
+      : mixColor(groupColor, "#000000", 0.1);
+  }
+
+  function referenceSelectStyle(color) {
+    const accent = safeColor(color, "#d87354");
+    const soft = mixColor(accent, "#ffffff", 0.86);
+    return `--reference-accent:${accent};--reference-accent-soft:${soft};`;
+  }
+
   function createReferenceLibrary() {
     return {
       emotion: flattenEmotionTags(DATA.emotionCategories),
@@ -3259,11 +3820,13 @@
 
     categories.forEach((category) => {
       category.groups.forEach((group) => {
+        const groupColor = getEmotionGroupColor(category.id, group.label);
         group.tags.forEach((tagLabel) => {
           result.push({
             id: `${category.id}-${tagLabel}`,
             label: tagLabel,
-            color: safeColor(category.color, "#d87354"),
+            color: getEmotionReferenceTagColor(category.id, group.label, tagLabel),
+            groupColor,
             categoryId: category.id,
             categoryName: category.label,
             groupLabel: group.label,
@@ -3583,6 +4146,7 @@
         note: ""
       },
       guided: newGuidedDraft(),
+      creators: {},
       settings: {
         page: "root",
         libraryTab: "emotion",
