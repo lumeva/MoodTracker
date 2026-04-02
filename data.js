@@ -172,8 +172,8 @@ window.APP_DATA = {
     }
   ],
   androidDownloads: {
-    apkUrl: "https://github.com/nnnyyyxx04-prog/MoodTracker/releases/latest/download/moodtracker-release.apk",
-    aabUrl: "https://github.com/nnnyyyxx04-prog/MoodTracker/releases/latest/download/moodtracker-release.aab",
-    releasePageUrl: "https://github.com/nnnyyyxx04-prog/MoodTracker/releases/latest"
+    apkUrl: "https://github.com/lumeva/MoodTracker/releases/latest/download/moodtracker-release.apk",
+    aabUrl: "https://github.com/lumeva/MoodTracker/releases/latest/download/moodtracker-release.aab",
+    releasePageUrl: "https://github.com/lumeva/MoodTracker/releases/latest"
   }
 };

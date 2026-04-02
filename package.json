@@ -11,15 +11,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nnnyyyxx04-prog/MoodTracker.git"
+    "url": "git+https://github.com/lumeva/MoodTracker.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/nnnyyyxx04-prog/MoodTracker/issues"
+    "url": "https://github.com/lumeva/MoodTracker/issues"
   },
-  "homepage": "https://github.com/nnnyyyxx04-prog/MoodTracker#readme",
+  "homepage": "https://github.com/lumeva/MoodTracker#readme",
   "dependencies": {
     "@capacitor/android": "^8.3.0",
     "@capacitor/cli": "^8.3.0",
