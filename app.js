@@ -2226,19 +2226,11 @@
             <button class="primary-button" type="button" data-settings-action="install-app">安装到主屏幕</button>
             <button class="ghost-button" type="button" data-settings-action="refresh-app">刷新离线缓存</button>
           </div>
-          <p class="settings-note" id="install-status">${escapeHtml(getInstallStatusText())}</p>
         </div>
         <div class="manager-panel">
-          <div class="manager-copy">
-            <strong>正式 Android 下载</strong>
-            <p>APK 适合直接安装到手机，AAB 适合后续上架或继续分发。这里会始终指向最新正式版本。</p>
-          </div>
           <div class="button-row">
             <a class="secondary-button button-link" href="${escapeHtml(ANDROID_DOWNLOADS.apkUrl)}" target="_blank" rel="noopener noreferrer">下载正式 APK</a>
-            <a class="ghost-button button-link" href="${escapeHtml(ANDROID_DOWNLOADS.aabUrl)}" target="_blank" rel="noopener noreferrer">下载 AAB</a>
-            <a class="ghost-button button-link" href="${escapeHtml(ANDROID_DOWNLOADS.releasePageUrl)}" target="_blank" rel="noopener noreferrer">查看发布页</a>
           </div>
-          <p class="settings-note">如果刚发布新版本，正式包可能需要几分钟完成签名和上传。</p>
         </div>
       `
     });
