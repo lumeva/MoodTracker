@@ -1,0 +1,6 @@
+{
+  "appId": "io.github.nnnyyyxx04prog.moodtracker",
+  "appName": "心绪记录",
+  "webDir": "web-build",
+  "bundledWebRuntime": false
+}

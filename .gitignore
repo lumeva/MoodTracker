@@ -1,0 +1,14 @@
+node_modules/
+www/
+web-build/
+.tmp-debug-layout-2.png
+.tmp-debug-layout.png
+.tmp-guided-final-check.png
+.tmp-home-final-check.png
+.tmp-mobile-file.png
+.tmp-mobile-guided-fixed.png
+.tmp-mobile-guided.png
+.tmp-mobile-home.png
+android/app/src/main/java/com/getcapacitor/myapp/
+android/app/src/androidTest/java/com/getcapacitor/myapp/
+android/app/src/test/java/com/getcapacitor/myapp/

@@ -1,0 +1,28 @@
+{
+  "name": "moodtracker",
+  "version": "1.0.0",
+  "description": "Capacitor Android packaging for the MoodTracker web app.",
+  "main": "app.js",
+  "scripts": {
+    "prepare:web": "node ./scripts/prepare-capacitor-web.mjs",
+    "cap:add:android": "npm run prepare:web && npx cap add android",
+    "cap:sync": "npm run prepare:web && npx cap sync android",
+    "android:open": "npx cap open android"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nnnyyyxx04-prog/MoodTracker.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/nnnyyyxx04-prog/MoodTracker/issues"
+  },
+  "homepage": "https://github.com/nnnyyyxx04-prog/MoodTracker#readme",
+  "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/cli": "^8.3.0",
+    "@capacitor/core": "^8.3.0"
+  }
+}
