@@ -163,12 +163,17 @@ window.APP_DATA = {
     {
       id: "install",
       title: "安装到主屏幕",
-      description: "把网页安装成接近 App 的使用方式。"
+      description: "把网页安装成接近 App 的使用方式，也可以下载正式 Android 安装包。"
     },
     {
       id: "privacy",
       title: "隐私与紧急提示",
       description: "了解数据存放位置，以及在紧急情况下需要优先做什么。"
     }
-  ]
+  ],
+  androidDownloads: {
+    apkUrl: "https://github.com/nnnyyyxx04-prog/MoodTracker/releases/latest/download/moodtracker-release.apk",
+    aabUrl: "https://github.com/nnnyyyxx04-prog/MoodTracker/releases/latest/download/moodtracker-release.aab",
+    releasePageUrl: "https://github.com/nnnyyyxx04-prog/MoodTracker/releases/latest"
+  }
 };

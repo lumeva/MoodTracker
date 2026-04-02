@@ -9,6 +9,7 @@ web-build/
 .tmp-mobile-guided-fixed.png
 .tmp-mobile-guided.png
 .tmp-mobile-home.png
+.android-release/
 android/app/src/main/java/com/getcapacitor/myapp/
 android/app/src/androidTest/java/com/getcapacitor/myapp/
 android/app/src/test/java/com/getcapacitor/myapp/

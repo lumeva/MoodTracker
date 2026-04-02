@@ -34,6 +34,11 @@
     "#4f8f8b",
     "#b36b63"
   ];
+  const ANDROID_DOWNLOADS = DATA.androidDownloads || {
+    apkUrl: "",
+    aabUrl: "",
+    releasePageUrl: ""
+  };
 
   const REFERENCE_LIBRARY = createReferenceLibrary();
   const BUILTIN_PROJECTS = createBuiltinProjects();
@@ -50,6 +55,7 @@
     cacheEls();
     seedExportDefaults();
     ensureExportSelectionValid();
+    hydrateDownloadLinks();
     bindEvents();
     bootstrapPwa();
     syncReminderStatusText();
@@ -62,6 +68,8 @@
     els.todayLabel = document.getElementById("today-label");
     els.currentSlotLabel = document.getElementById("current-slot-label");
     els.weeklyCountLabel = document.getElementById("weekly-count-label");
+    els.downloadApkLink = document.getElementById("download-apk-link");
+    els.releasePageLink = document.getElementById("release-page-link");
 
     els.quickEmotionSelected = document.getElementById("quick-emotion-selected");
     els.quickEmotionInput = document.getElementById("quick-emotion-input");
@@ -111,6 +119,16 @@
     els.recentRecords = document.getElementById("recent-records");
     els.settingsView = document.getElementById("settings-view");
     els.toast = document.getElementById("toast");
+  }
+
+  function hydrateDownloadLinks() {
+    if (els.downloadApkLink) {
+      els.downloadApkLink.href = ANDROID_DOWNLOADS.apkUrl || ANDROID_DOWNLOADS.releasePageUrl || "#";
+    }
+
+    if (els.releasePageLink) {
+      els.releasePageLink.href = ANDROID_DOWNLOADS.releasePageUrl || ANDROID_DOWNLOADS.apkUrl || "#";
+    }
   }
 
   function bindEvents() {
@@ -2200,7 +2218,7 @@
     return settingsShellMarkup({
       eyebrow: "安装",
       title: "安装到主屏幕",
-      description: "安装后会更像一个小型 App，也更适合在手机上打开和记录。",
+      description: "既可以把网页安装到主屏幕，也可以直接下载正式 Android 安装包。",
       backTo: "root",
       content: `
         <div class="manager-panel">
@@ -2209,6 +2227,18 @@
             <button class="ghost-button" type="button" data-settings-action="refresh-app">刷新离线缓存</button>
           </div>
           <p class="settings-note" id="install-status">${escapeHtml(getInstallStatusText())}</p>
+        </div>
+        <div class="manager-panel">
+          <div class="manager-copy">
+            <strong>正式 Android 下载</strong>
+            <p>APK 适合直接安装到手机，AAB 适合后续上架或继续分发。这里会始终指向最新正式版本。</p>
+          </div>
+          <div class="button-row">
+            <a class="secondary-button button-link" href="${escapeHtml(ANDROID_DOWNLOADS.apkUrl)}" target="_blank" rel="noopener noreferrer">下载正式 APK</a>
+            <a class="ghost-button button-link" href="${escapeHtml(ANDROID_DOWNLOADS.aabUrl)}" target="_blank" rel="noopener noreferrer">下载 AAB</a>
+            <a class="ghost-button button-link" href="${escapeHtml(ANDROID_DOWNLOADS.releasePageUrl)}" target="_blank" rel="noopener noreferrer">查看发布页</a>
+          </div>
+          <p class="settings-note">如果刚发布新版本，正式包可能需要几分钟完成签名和上传。</p>
         </div>
       `
     });

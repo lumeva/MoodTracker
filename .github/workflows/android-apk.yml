@@ -1,12 +1,10 @@
-name: Build Android APK
+name: Build Android Debug APK
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 on:
   workflow_dispatch:
-  push:
-    branches: ["main"]
 
 jobs:
   build-apk:

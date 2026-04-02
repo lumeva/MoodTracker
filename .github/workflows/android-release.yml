@@ -1,0 +1,146 @@
+name: Build Android Release
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform packages
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Check signing secrets
+        id: signing
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          missing=()
+          for secret_name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!secret_name}" ]; then
+              missing+=("$secret_name")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "missing=$(IFS=,; echo "${missing[*]}")" >> "$GITHUB_OUTPUT"
+            echo "::warning::Skipping signed Android release. Missing secrets: $(IFS=,; echo "${missing[*]}")"
+            exit 0
+          fi
+
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Install npm dependencies
+        if: steps.signing.outputs.ready == 'true'
+        run: npm ci
+
+      - name: Prepare bundled web assets
+        if: steps.signing.outputs.ready == 'true'
+        run: npm run prepare:web
+
+      - name: Sync Capacitor Android project
+        if: steps.signing.outputs.ready == 'true'
+        run: npx cap sync android
+
+      - name: Prepare signing files
+        if: steps.signing.outputs.ready == 'true'
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          mkdir -p android/signing
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/signing/release-keystore.jks
+          cat > android/keystore.properties <<EOF
+          storeFile=signing/release-keystore.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+
+      - name: Build signed release APK and AAB
+        if: steps.signing.outputs.ready == 'true'
+        shell: bash
+        env:
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_NAME: 1.0.${{ github.run_number }}
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease bundleRelease --no-daemon
+
+      - name: Prepare release assets
+        if: steps.signing.outputs.ready == 'true'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk dist/moodtracker-release.apk
+          cp android/app/build/outputs/bundle/release/app-release.aab dist/moodtracker-release.aab
+          sha256sum dist/moodtracker-release.apk dist/moodtracker-release.aab > dist/SHA256SUMS.txt
+
+      - name: Publish GitHub release
+        if: steps.signing.outputs.ready == 'true'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_TAG: android-v${{ github.run_number }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            dist/moodtracker-release.apk \
+            dist/moodtracker-release.aab \
+            dist/SHA256SUMS.txt \
+            --title "Android Release $RELEASE_TAG" \
+            --notes "自动构建的 Android 正式包。包含可直接安装的 release APK，以及用于发布的 AAB。"
+
+      - name: Upload release artifacts
+        if: steps.signing.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: moodtracker-release-android
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Release setup reminder
+        if: steps.signing.outputs.ready != 'true'
+        shell: bash
+        run: |
+          echo "Signed Android release was skipped."
+          echo "Missing secrets: ${{ steps.signing.outputs.missing }}"
+          echo "Add the Android signing secrets in the repository settings, then re-run this workflow."

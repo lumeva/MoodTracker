@@ -397,6 +397,10 @@ p {
   border-radius: 16px;
 }
 
+.button-link {
+  text-decoration: none;
+}
+
 .primary-button:hover,
 .secondary-button:hover,
 .ghost-button:hover,
@@ -710,6 +714,10 @@ p {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-top: 20px;
+}
+
+.hero-action-row {
+  margin-top: 16px;
 }
 
 .hero-pill {
