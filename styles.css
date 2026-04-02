@@ -1144,7 +1144,13 @@ p {
 
 .record-header {
   display: grid;
-  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.record-header > div {
+  min-width: 0;
 }
 
 .record-meta {
@@ -1212,6 +1218,29 @@ p {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.6;
+}
+
+.recent-editor-shell {
+  display: grid;
+  gap: 18px;
+}
+
+.recent-editor-header {
+  display: grid;
+  gap: 10px;
+}
+
+.recent-editor-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.recent-editor-project {
+  margin-top: 2px;
+}
+
+.recent-editor-actions {
+  margin-top: 4px;
 }
 
 .tag-badge,
@@ -1588,6 +1617,15 @@ p {
   .chart-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .record-header {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .record-header .mini-button {
+    justify-self: start;
   }
 
   .hero-stats,

@@ -220,6 +220,11 @@
       els.statsScreen.addEventListener("click", onStatsClick);
     }
 
+    els.recentRecords.addEventListener("click", onRecentRecordsClick);
+    els.recentRecords.addEventListener("input", onRecentRecordsInput);
+    els.recentRecords.addEventListener("change", onRecentRecordsChange);
+    els.recentRecords.addEventListener("keydown", onRecentRecordsKeydown);
+
     els.settingsView.addEventListener("click", onSettingsClick);
     els.settingsView.addEventListener("input", onSettingsInput);
     els.settingsView.addEventListener("change", onSettingsChange);
@@ -1119,6 +1124,17 @@
   }
 
   function renderRecentRecords() {
+    if (ui.recentEditor) {
+      const record = state.records.find((item) => item.id === ui.recentEditor.recordId);
+      if (!record) {
+        ui.recentEditor = null;
+      } else {
+        els.recentRecords.innerHTML = recentEditorMarkup(ui.recentEditor, record);
+        renderRecentEditorExtras();
+        return;
+      }
+    }
+
     const recent = [...state.records]
       .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
       .slice(0, 50);
@@ -1135,6 +1151,12 @@
             <h4>${escapeHtml(formatFullRecordMoment(record.createdAt))}</h4>
             <div class="record-meta">${escapeHtml(sourceLabel(record.source))}${record.projectEntries.length ? ` · ${escapeHtml(record.projectEntries.map((entry) => entry.projectName).join(" / "))}` : ""}</div>
           </div>
+          <button
+            type="button"
+            class="mini-button"
+            data-recent-action="edit"
+            data-record-id="${record.id}"
+          >编辑</button>
         </div>
         ${recordBodyMarkup(record)}
         <div class="record-entry-list">
@@ -1142,6 +1164,210 @@
         </div>
       </article>
     `).join("");
+  }
+
+  function recentEditorMarkup(draft, record) {
+    const showEmotionSomatic = draft.source !== "other";
+    const showOther = draft.source === "other";
+    const otherProject = showOther ? getProject(draft.otherProjectId) : null;
+
+    return `
+      <div class="recent-editor-shell">
+        <div class="recent-editor-header">
+          <button
+            type="button"
+            class="settings-back"
+            data-recent-action="cancel-edit"
+          >← 返回记录</button>
+          <div class="recent-editor-copy">
+            <p class="eyebrow">EDIT</p>
+            <h3>修改记录</h3>
+            <p class="field-subtle">${escapeHtml(formatFullRecordMoment(record.createdAt))} · ${escapeHtml(sourceLabel(record.source))}</p>
+          </div>
+        </div>
+
+        ${showEmotionSomatic ? `
+          <div class="field-panel">
+            <div class="field-header">
+              <h3>情绪</h3>
+            </div>
+            <div id="recent-edit-emotion-selected" class="selected-strip"></div>
+            <div class="input-shell">
+              <input
+                id="recent-edit-emotion-input"
+                type="text"
+                autocomplete="off"
+                placeholder="${escapeHtml(getEmotionInputPlaceholder())}"
+                value="${escapeHtml(draft.emotionQuery)}"
+              >
+            </div>
+            <div id="recent-edit-emotion-suggestions" class="suggestion-list"></div>
+            <div id="recent-edit-emotion-creator" class="inline-creator-host"></div>
+          </div>
+
+          <div class="field-panel">
+            <div class="field-header">
+              <h3>躯体感受</h3>
+            </div>
+            <div id="recent-edit-somatic-selected" class="selected-strip"></div>
+            <div class="input-shell">
+              <input
+                id="recent-edit-somatic-input"
+                type="text"
+                autocomplete="off"
+                placeholder="${escapeHtml(getSomaticInputPlaceholder())}"
+                value="${escapeHtml(draft.somaticQuery)}"
+              >
+            </div>
+            <div id="recent-edit-somatic-suggestions" class="suggestion-list"></div>
+            <div id="recent-edit-somatic-creator" class="inline-creator-host"></div>
+          </div>
+
+          <div class="form-block">
+            <label class="field-label" for="recent-edit-intensity">情绪强度</label>
+            <div class="range-wrap">
+              <input id="recent-edit-intensity" type="range" min="1" max="5" step="1" value="${draft.intensity}">
+              <div class="range-meta">
+                <span>轻微</span>
+                <strong id="recent-edit-intensity-label">${escapeHtml(DATA.intensityLabels[draft.intensity])}</strong>
+                <span>强烈</span>
+              </div>
+            </div>
+          </div>
+        ` : `
+          <div class="field-panel">
+            <div class="field-header">
+              <h3>标签</h3>
+              <p class="field-subtle">项目保持不变，这里只修改这条记录使用的标签。</p>
+            </div>
+            ${otherProject ? `
+              <div class="record-entry-project recent-editor-project" style="--project-color:${safeColor(otherProject.color)}">
+                <span class="record-entry-accent"></span>
+                <span>${escapeHtml(otherProject.name)}</span>
+              </div>
+            ` : ""}
+            <div id="recent-edit-other-selected" class="selected-strip"></div>
+            <div class="input-shell">
+              <input
+                id="recent-edit-other-tag-input"
+                type="text"
+                autocomplete="off"
+                placeholder="${escapeHtml(otherProject ? `输入“${otherProject.name}”下面的标签` : "输入标签")}"
+                value="${escapeHtml(draft.otherTagQuery)}"
+              >
+            </div>
+            <div id="recent-edit-other-tag-suggestions" class="suggestion-list"></div>
+            <div id="recent-edit-other-tag-creator" class="inline-creator-host"></div>
+          </div>
+        `}
+
+        ${draft.source === "guided" ? `
+          <div class="form-block">
+            <label class="field-label">身体部位</label>
+            <div class="choice-grid">
+              ${DATA.bodyAreas.map((area) => choiceChipMarkup({
+                label: area,
+                active: draft.bodyAreas.includes(area),
+                dataset: { recentBodyArea: area },
+                dotColor: getBodyAreaColors()[area] || "#5a84c6"
+              })).join("")}
+            </div>
+          </div>
+
+          <div class="form-block">
+            <label class="field-label" for="recent-edit-event-text">发生了什么</label>
+            <textarea
+              id="recent-edit-event-text"
+              rows="5"
+              placeholder="补充这次情绪前后发生了什么。"
+            >${escapeHtml(draft.eventText)}</textarea>
+          </div>
+
+          <div class="form-block">
+            <label class="field-label" for="recent-edit-childhood-echo">旧日回声</label>
+            <textarea
+              id="recent-edit-childhood-echo"
+              rows="5"
+              placeholder="如果你愿意，可以补充它和过去的连接。"
+            >${escapeHtml(draft.childhoodEcho)}</textarea>
+          </div>
+        ` : ""}
+
+        ${(draft.source === "quick" || draft.source === "other") ? `
+          <div class="form-block">
+            <label class="field-label" for="recent-edit-note">补充说明</label>
+            <textarea
+              id="recent-edit-note"
+              class="note-textarea"
+              rows="3"
+              placeholder="${escapeHtml(draft.source === "other" ? "补充这条项目记录的具体内容。" : "如果你愿意，可以补充这一刻发生了什么。")}"
+            >${escapeHtml(draft.note)}</textarea>
+          </div>
+        ` : ""}
+
+        <div class="button-row recent-editor-actions">
+          <button type="button" class="ghost-button" data-recent-action="cancel-edit">取消</button>
+          <button type="button" class="primary-button" data-recent-action="save-edit">保存修改</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderRecentEditorExtras() {
+    const draft = ui.recentEditor;
+    if (!draft) return;
+
+    if (draft.source !== "other") {
+      renderSelectedStrip(document.getElementById("recent-edit-emotion-selected"), {
+        projectId: "emotion",
+        selectedIds: draft.selectedEmotionIds,
+        removeDataset: { recentRemove: "emotion" },
+        emptyText: ""
+      });
+      renderSelectedStrip(document.getElementById("recent-edit-somatic-selected"), {
+        projectId: "somatic",
+        selectedIds: draft.selectedSomaticIds,
+        removeDataset: { recentRemove: "somatic" },
+        emptyText: ""
+      });
+      renderTagSuggestionList(document.getElementById("recent-edit-emotion-suggestions"), {
+        context: "recent-emotion",
+        projectId: "emotion",
+        query: draft.emotionQuery,
+        selectedIds: draft.selectedEmotionIds,
+        emptyText: ""
+      });
+      renderTagSuggestionList(document.getElementById("recent-edit-somatic-suggestions"), {
+        context: "recent-somatic",
+        projectId: "somatic",
+        query: draft.somaticQuery,
+        selectedIds: draft.selectedSomaticIds,
+        emptyText: ""
+      });
+      renderInlineCreator(document.getElementById("recent-edit-emotion-creator"), "recent-emotion", getCreatorDraft("recent-emotion"));
+      renderInlineCreator(document.getElementById("recent-edit-somatic-creator"), "recent-somatic", getCreatorDraft("recent-somatic"));
+
+      const intensityLabel = document.getElementById("recent-edit-intensity-label");
+      if (intensityLabel) {
+        intensityLabel.textContent = DATA.intensityLabels[draft.intensity];
+      }
+      return;
+    }
+
+    renderSelectedStrip(document.getElementById("recent-edit-other-selected"), {
+      projectId: draft.otherProjectId,
+      selectedIds: draft.selectedOtherTagIds,
+      removeDataset: { recentRemove: "other" },
+      emptyText: ""
+    });
+    renderTagSuggestionList(document.getElementById("recent-edit-other-tag-suggestions"), {
+      context: "recent-other-tag",
+      projectId: draft.otherProjectId,
+      query: draft.otherTagQuery,
+      selectedIds: draft.selectedOtherTagIds,
+      emptyText: ""
+    });
+    renderInlineCreator(document.getElementById("recent-edit-other-tag-creator"), "recent-other-tag", getCreatorDraft("recent-other-tag"));
   }
 
   function renderSettings() {
@@ -1354,8 +1580,20 @@
     return Boolean(findTagByLabel(projectId, label) || findReferenceTagByLabel(projectId, label));
   }
 
+  function isEmotionCreatorContext(context) {
+    return context === "quick-emotion" || context === "guided-emotion" || context === "recent-emotion";
+  }
+
+  function isSomaticCreatorContext(context) {
+    return context === "quick-somatic" || context === "guided-somatic" || context === "recent-somatic";
+  }
+
+  function isProjectTagCreatorContext(context) {
+    return context === "other-tag" || context === "recent-other-tag";
+  }
+
   function createCreatorDraft(context, label, projectId, previous) {
-    if (context === "quick-emotion" || context === "guided-emotion") {
+    if (isEmotionCreatorContext(context)) {
       const categoryId = previous && previous.categoryId
         ? previous.categoryId
         : (context === "guided-emotion" ? ui.guided.referenceEmotionCategoryId : "");
@@ -1369,7 +1607,7 @@
       };
     }
 
-    if (context === "quick-somatic" || context === "guided-somatic") {
+    if (isSomaticCreatorContext(context)) {
       return {
         label,
         projectId: "somatic",
@@ -1418,7 +1656,7 @@
           </span>
         </div>
 
-        ${(context === "quick-emotion" || context === "guided-emotion") ? `
+        ${isEmotionCreatorContext(context) ? `
           <div class="input-grid two-up">
             <div class="form-block inline-gap">
               <label class="field-label" for="creator-category-${context}">所属情绪大类</label>
@@ -1499,11 +1737,11 @@
   }
 
   function getCreatorPalette(context, draft) {
-    if (context === "quick-emotion" || context === "guided-emotion") {
+    if (isEmotionCreatorContext(context)) {
       return getEmotionCategoryPalette(draft.categoryId);
     }
 
-    if (context === "quick-somatic" || context === "guided-somatic") {
+    if (isSomaticCreatorContext(context)) {
       return getSomaticColorPalette(draft && draft.label);
     }
 
@@ -1516,7 +1754,7 @@
   }
 
   function getCreatorPreviewColor(context, draft) {
-    if (context === "quick-emotion" || context === "guided-emotion") {
+    if (isEmotionCreatorContext(context)) {
       return draft.color || getEmotionCategoryDefaultColor(draft.categoryId);
     }
 
@@ -1524,18 +1762,18 @@
   }
 
   function getCreatorTitle(context) {
-    if (context === "quick-emotion" || context === "guided-emotion") return "新建情绪标签";
-    if (context === "quick-somatic" || context === "guided-somatic") return "新建躯体标签";
+    if (isEmotionCreatorContext(context)) return "新建情绪标签";
+    if (isSomaticCreatorContext(context)) return "新建躯体标签";
     if (context === "other-project") return "新建项目";
     return "新建项目标签";
   }
 
   function getCreatorCopy(context, draft) {
-    if (context === "quick-emotion" || context === "guided-emotion") {
+    if (isEmotionCreatorContext(context)) {
       return `先为“${draft.label}”选择一个情绪大类，系统会推荐对应色系。`;
     }
 
-    if (context === "quick-somatic" || context === "guided-somatic") {
+    if (isSomaticCreatorContext(context)) {
       return `为“${draft.label}”挑一个更容易识别的颜色。`;
     }
 
@@ -1568,6 +1806,11 @@
 
     if (context === "guided-emotion" || context === "guided-somatic") {
       renderGuidedStepExtras();
+      return;
+    }
+
+    if (context === "recent-emotion" || context === "recent-somatic" || context === "recent-other-tag") {
+      renderRecentEditorExtras();
       return;
     }
 
@@ -1658,7 +1901,7 @@
       return true;
     }
 
-    if (context === "other-tag") {
+    if (isProjectTagCreatorContext(context)) {
       const project = getProject(draft.projectId);
       if (!project) {
         toast("先选定一个项目，再创建项目标签。");
@@ -1666,13 +1909,17 @@
       }
       const tag = ensureTag(project.id, draft.label, draft.color);
       clearCreatorDraft(context);
-      selectOtherTag(project.id, tag.id);
-      renderHome();
+      if (context === "other-tag") {
+        selectOtherTag(project.id, tag.id);
+        renderHome();
+      } else {
+        addRecentEditorTagById("other", tag.id);
+      }
       toast(`已创建标签：${tag.label}`);
       return true;
     }
 
-    if ((context === "quick-emotion" || context === "guided-emotion") && !draft.categoryId) {
+    if (isEmotionCreatorContext(context) && !draft.categoryId) {
       toast("先为这个情绪标签选择一个所属大类。");
       return false;
     }
@@ -1692,8 +1939,12 @@
 
     if (context === "quick-emotion") {
       addQuickTagById("emotion", tag.id);
+    } else if (context === "recent-emotion") {
+      addRecentEditorTagById("emotion", tag.id);
     } else if (context === "quick-somatic") {
       addQuickTagById("somatic", tag.id);
+    } else if (context === "recent-somatic") {
+      addRecentEditorTagById("somatic", tag.id);
     } else if (context === "guided-emotion") {
       addGuidedTagById("emotion", tag.id);
     } else {
@@ -1911,6 +2162,9 @@
   }
 
   function settingsBackupMarkup() {
+    const pending = ui.settings.pendingImport;
+    const statusText = ui.settings.backupStatus || "只支持导入从这个网页导出的 JSON 备份文件。";
+
     return settingsShellMarkup({
       eyebrow: "备份",
       title: "备份与恢复",
@@ -1923,8 +2177,21 @@
             <button class="ghost-button" type="button" data-settings-action="trigger-import">导入备份</button>
           </div>
           <input id="backup-import-file" type="file" accept=".json,application/json" class="hidden">
-          <p class="settings-note" id="backup-status">导入备份会覆盖当前浏览器里的本地数据。</p>
+          <p class="settings-note" id="backup-status">${escapeHtml(statusText)}</p>
         </div>
+        ${pending ? `
+          <div class="manager-panel">
+            <div class="manager-copy">
+              <strong>准备导入：${escapeHtml(pending.fileName)}</strong>
+              <p>导出时间：${escapeHtml(formatImportMoment(pending.exportedAt))}</p>
+              <p>记录 ${pending.recordCount} 条 · 项目 ${pending.projectCount} 个 · 标签 ${pending.tagCount} 个</p>
+            </div>
+            <div class="button-row">
+              <button class="secondary-button" type="button" data-settings-action="confirm-import">确认导入</button>
+              <button class="ghost-button" type="button" data-settings-action="cancel-import">取消</button>
+            </div>
+          </div>
+        ` : ""}
       `
     });
   }
@@ -2130,6 +2397,7 @@
   }
 
   function renderSelectedStrip(container, options) {
+    if (!container) return;
     container.innerHTML = selectedStripMarkup(options);
   }
 
@@ -2337,6 +2605,280 @@
     toast("已删除这条其他项目记录");
   }
 
+  function openRecentEditor(recordId) {
+    const record = state.records.find((item) => item.id === recordId);
+    if (!record) return;
+
+    clearCreatorDraft("recent-emotion");
+    clearCreatorDraft("recent-somatic");
+    clearCreatorDraft("recent-other-tag");
+    ui.recentEditor = newRecentEditorDraft(record);
+    renderRecentRecords();
+  }
+
+  function closeRecentEditor() {
+    clearCreatorDraft("recent-emotion");
+    clearCreatorDraft("recent-somatic");
+    clearCreatorDraft("recent-other-tag");
+    ui.recentEditor = null;
+    renderRecentRecords();
+  }
+
+  function onRecentRecordsClick(event) {
+    const suggestionButton = event.target.closest("[data-suggestion-type]");
+    if (suggestionButton) {
+      handleSuggestion(suggestionButton.dataset);
+      return;
+    }
+
+    const actionButton = event.target.closest("[data-recent-action]");
+    if (actionButton) {
+      const action = actionButton.dataset.recentAction;
+      if (action === "edit") {
+        openRecentEditor(actionButton.dataset.recordId);
+        return;
+      }
+
+      if (action === "cancel-edit") {
+        closeRecentEditor();
+        return;
+      }
+
+      if (action === "save-edit") {
+        saveRecentEdit();
+      }
+      return;
+    }
+
+    const removeButton = event.target.closest("[data-recent-remove]");
+    if (removeButton && ui.recentEditor) {
+      if (removeButton.dataset.recentRemove === "emotion") {
+        removeFromArray(ui.recentEditor.selectedEmotionIds, removeButton.dataset.tagId);
+      } else if (removeButton.dataset.recentRemove === "somatic") {
+        removeFromArray(ui.recentEditor.selectedSomaticIds, removeButton.dataset.tagId);
+      } else {
+        removeFromArray(ui.recentEditor.selectedOtherTagIds, removeButton.dataset.tagId);
+      }
+      renderRecentEditorExtras();
+      return;
+    }
+
+    const bodyButton = event.target.closest("[data-recent-body-area]");
+    if (bodyButton && ui.recentEditor) {
+      toggleInArray(ui.recentEditor.bodyAreas, bodyButton.dataset.recentBodyArea);
+      renderRecentRecords();
+    }
+  }
+
+  function onRecentRecordsInput(event) {
+    const draft = ui.recentEditor;
+    if (!draft) return;
+
+    const target = event.target;
+
+    if (target.id === "recent-edit-emotion-input") {
+      draft.emotionQuery = target.value;
+      syncCreatorDraft("recent-emotion", target.value, { projectId: "emotion" });
+      renderRecentEditorExtras();
+      return;
+    }
+
+    if (target.id === "recent-edit-somatic-input") {
+      draft.somaticQuery = target.value;
+      syncCreatorDraft("recent-somatic", target.value, { projectId: "somatic" });
+      renderRecentEditorExtras();
+      return;
+    }
+
+    if (target.id === "recent-edit-other-tag-input") {
+      draft.otherTagQuery = target.value;
+      syncCreatorDraft("recent-other-tag", target.value, { projectId: draft.otherProjectId });
+      renderRecentEditorExtras();
+      return;
+    }
+
+    if (target.id === "recent-edit-note") {
+      draft.note = target.value;
+      return;
+    }
+
+    if (target.id === "recent-edit-event-text") {
+      draft.eventText = target.value;
+      return;
+    }
+
+    if (target.id === "recent-edit-childhood-echo") {
+      draft.childhoodEcho = target.value;
+    }
+  }
+
+  function onRecentRecordsChange(event) {
+    const draft = ui.recentEditor;
+    if (!draft) return;
+
+    if (event.target.id === "recent-edit-intensity") {
+      draft.intensity = Number(event.target.value);
+      renderRecentEditorExtras();
+    }
+  }
+
+  function onRecentRecordsKeydown(event) {
+    const draft = ui.recentEditor;
+    if (!draft || event.key !== "Enter") return;
+
+    if (event.target.id === "recent-edit-emotion-input") {
+      event.preventDefault();
+      commitRecentEditorTag("emotion");
+    }
+
+    if (event.target.id === "recent-edit-somatic-input") {
+      event.preventDefault();
+      commitRecentEditorTag("somatic");
+    }
+
+    if (event.target.id === "recent-edit-other-tag-input") {
+      event.preventDefault();
+      commitRecentEditorTag("other");
+    }
+  }
+
+  function commitRecentEditorTag(kind) {
+    const draft = ui.recentEditor;
+    if (!draft) return;
+
+    const projectId = kind === "emotion"
+      ? "emotion"
+      : (kind === "somatic" ? "somatic" : draft.otherProjectId);
+    const context = kind === "emotion"
+      ? "recent-emotion"
+      : (kind === "somatic" ? "recent-somatic" : "recent-other-tag");
+    const query = kind === "emotion"
+      ? draft.emotionQuery.trim()
+      : (kind === "somatic" ? draft.somaticQuery.trim() : draft.otherTagQuery.trim());
+    if (!query || !projectId) return;
+
+    const existing = findTagByLabel(projectId, query);
+    if (existing) {
+      addRecentEditorTagById(kind, existing.id);
+      return;
+    }
+
+    const reference = findReferenceTagByLabel(projectId, query);
+    if (reference) {
+      const tag = ensureReferenceTag(projectId, reference);
+      if (tag) addRecentEditorTagById(kind, tag.id);
+      return;
+    }
+
+    syncCreatorDraft(context, query, { projectId });
+    confirmCreator(context);
+  }
+
+  function addRecentEditorTagById(kind, tagId) {
+    const draft = ui.recentEditor;
+    if (!draft) return;
+
+    if (kind === "emotion") {
+      if (!draft.selectedEmotionIds.includes(tagId)) draft.selectedEmotionIds.push(tagId);
+      draft.emotionQuery = "";
+      clearCreatorDraft("recent-emotion");
+    } else if (kind === "somatic") {
+      if (!draft.selectedSomaticIds.includes(tagId)) draft.selectedSomaticIds.push(tagId);
+      draft.somaticQuery = "";
+      clearCreatorDraft("recent-somatic");
+    } else {
+      if (!draft.selectedOtherTagIds.includes(tagId)) draft.selectedOtherTagIds.push(tagId);
+      draft.otherTagQuery = "";
+      clearCreatorDraft("recent-other-tag");
+    }
+
+    renderRecentRecords();
+  }
+
+  function saveRecentEdit() {
+    const draft = ui.recentEditor;
+    if (!draft) return;
+
+    const record = state.records.find((item) => item.id === draft.recordId);
+    if (!record) return;
+
+    if (draft.source === "other") {
+      const project = getProject(draft.otherProjectId);
+      const tagEntries = (draft.selectedOtherTagIds || [])
+        .map((tagId) => toTagEntry(project, tagId))
+        .filter(Boolean);
+
+      if (!project || (!tagEntries.length && !draft.note.trim())) {
+        toast("至少保留一个标签，或补充一点说明。");
+        return;
+      }
+
+      record.note = draft.note.trim();
+      record.projectEntries = [{
+        projectId: project.id,
+        projectName: project.name,
+        projectColor: project.color,
+        entries: tagEntries,
+        note: draft.note.trim()
+      }];
+
+      saveState();
+      closeRecentEditor();
+      renderApp();
+      toast("这条记录已经更新");
+      return;
+    }
+
+    const emotionProject = getProject("emotion");
+    const somaticProject = getProject("somatic");
+    const emotionEntries = (draft.selectedEmotionIds || [])
+      .map((tagId) => toTagEntry(emotionProject, tagId, draft.intensity))
+      .filter(Boolean);
+    const somaticEntries = (draft.selectedSomaticIds || [])
+      .map((tagId) => toTagEntry(somaticProject, tagId))
+      .filter(Boolean);
+
+    const hasContent = draft.source === "guided"
+      ? emotionEntries.length || somaticEntries.length || draft.bodyAreas.length || draft.eventText.trim() || draft.childhoodEcho.trim()
+      : emotionEntries.length || somaticEntries.length || draft.note.trim();
+
+    if (!hasContent) {
+      toast("这条记录还不能是空的。");
+      return;
+    }
+
+    record.note = draft.source === "quick" ? draft.note.trim() : String(record.note || "");
+    record.eventText = draft.source === "guided" ? draft.eventText.trim() : "";
+    record.childhoodEcho = draft.source === "guided" ? draft.childhoodEcho.trim() : "";
+    record.bodyAreas = draft.source === "guided" ? [...draft.bodyAreas] : [];
+    record.projectEntries = [];
+
+    if (emotionEntries.length) {
+      record.projectEntries.push({
+        projectId: emotionProject.id,
+        projectName: emotionProject.name,
+        projectColor: emotionProject.color,
+        entries: emotionEntries,
+        note: ""
+      });
+    }
+
+    if (somaticEntries.length) {
+      record.projectEntries.push({
+        projectId: somaticProject.id,
+        projectName: somaticProject.name,
+        projectColor: somaticProject.color,
+        entries: somaticEntries,
+        note: ""
+      });
+    }
+
+    saveState();
+    closeRecentEditor();
+    renderApp();
+    toast("这条记录已经更新");
+  }
+
   function onSuggestionClick(event) {
     const button = event.target.closest("[data-suggestion-type]");
     if (!button) return;
@@ -2383,8 +2925,18 @@
       return;
     }
 
+    if (dataset.context === "recent-emotion") {
+      addRecentEditorTagById("emotion", tagId);
+      return;
+    }
+
     if (dataset.context === "quick-somatic") {
       addQuickTagById("somatic", tagId);
+      return;
+    }
+
+    if (dataset.context === "recent-somatic") {
+      addRecentEditorTagById("somatic", tagId);
       return;
     }
 
@@ -2401,6 +2953,11 @@
     if (dataset.context === "other-tag") {
       selectOtherTag(projectId, tagId);
       renderHome();
+      return;
+    }
+
+    if (dataset.context === "recent-other-tag") {
+      addRecentEditorTagById("other", tagId);
     }
   }
 
@@ -2644,6 +3201,17 @@
       return;
     }
 
+    if (action === "confirm-import") {
+      confirmBackupImport();
+      return;
+    }
+
+    if (action === "cancel-import") {
+      clearPendingBackupImport("已取消这次导入。");
+      renderSettings();
+      return;
+    }
+
     if (action === "install-app") {
       promptInstallApp();
       return;
@@ -2780,7 +3348,7 @@
     }
 
     if (target.id === "backup-import-file") {
-      importBackupJson(target);
+      prepareBackupImport(target);
     }
   }
 
@@ -2968,10 +3536,14 @@
     const project = getProject(projectId);
     if (!project || !reference || !reference.label) return null;
 
+    const resolvedColor = projectId === "emotion"
+      ? getEmotionResolvedColor(reference.categoryId || null, reference.groupLabel || null, reference.label)
+      : getSomaticReferenceColor(reference);
+
     return ensureTag(
       projectId,
       reference.label,
-      reference.color || project.color,
+      reference.color || resolvedColor || project.color,
       {
         categoryId: reference.categoryId || null,
         categoryName: reference.categoryName || null,
@@ -3527,6 +4099,7 @@
 
   function exportBackupJson() {
     const snapshot = {
+      format: "mood-tracker-backup",
       exportedAt: new Date().toISOString(),
       app: DATA.appName,
       version: 2,
@@ -3539,10 +4112,12 @@
       "application/json;charset=utf-8"
     );
 
+    ui.settings.pendingImport = null;
+    ui.settings.backupStatus = "JSON 备份已导出。你也可以把它重新导入到这个网页里。";
     toast("JSON 备份已导出");
   }
 
-  function importBackupJson(input) {
+  function prepareBackupImport(input) {
     const file = input.files && input.files[0];
     if (!file) return;
 
@@ -3550,18 +4125,15 @@
     reader.onload = () => {
       try {
         const parsed = JSON.parse(String(reader.result || ""));
-        const payload = parsed.payload || parsed;
-        const nextState = normalizeState(payload);
-        const ok = window.confirm("导入备份会覆盖当前浏览器里的本地数据，确定继续吗？");
-        if (!ok) return;
-
-        overwriteState(nextState);
-        seedExportDefaults();
-        ensureExportSelectionValid();
-        startReminderMonitor();
-        renderApp();
-        toast("备份已经恢复");
+        const prepared = validateBackupImport(parsed, file.name);
+        ui.settings.pendingImport = prepared;
+        ui.settings.backupStatus = "文件校验通过。确认后会覆盖当前浏览器里的本地数据。";
+        renderSettings();
+        toast("导入文件已就绪");
       } catch (_) {
+        ui.settings.pendingImport = null;
+        ui.settings.backupStatus = "这个文件不是从当前网页导出的 JSON 备份。";
+        renderSettings();
         toast("这个备份文件格式不正确。");
       } finally {
         input.value = "";
@@ -3569,6 +4141,65 @@
     };
 
     reader.readAsText(file, "utf-8");
+  }
+
+  function confirmBackupImport() {
+    const prepared = ui.settings.pendingImport;
+    if (!prepared) {
+      toast("还没有可导入的备份文件。");
+      return;
+    }
+
+    const nextState = normalizeState(prepared.payload);
+    overwriteState(nextState);
+    seedExportDefaults();
+    ensureExportSelectionValid();
+    startReminderMonitor();
+    ui.recentEditor = null;
+    ui.settings.projectId = "";
+    ui.settings.drafts = createInitialSettingsDrafts();
+    ui.settings.pendingImport = null;
+    ui.settings.backupStatus = "备份已经恢复。";
+    renderApp();
+    toast("备份已经恢复");
+  }
+
+  function clearPendingBackupImport(statusText) {
+    ui.settings.pendingImport = null;
+    if (typeof statusText === "string") {
+      ui.settings.backupStatus = statusText;
+    }
+  }
+
+  function validateBackupImport(parsed, fileName) {
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("invalid-backup");
+    }
+
+    const isKnownBackup = parsed.format === "mood-tracker-backup"
+      || (parsed.app === DATA.appName && Object.prototype.hasOwnProperty.call(parsed, "payload"));
+    if (!isKnownBackup) {
+      throw new Error("invalid-backup");
+    }
+
+    const payload = parsed.payload;
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      throw new Error("invalid-backup");
+    }
+
+    if (!Array.isArray(payload.records) || !Array.isArray(payload.projects) || !payload.settings) {
+      throw new Error("invalid-backup");
+    }
+
+    return {
+      fileName,
+      exportedAt: parsed.exportedAt || new Date().toISOString(),
+      version: parsed.version || 0,
+      payload,
+      recordCount: payload.records.length,
+      projectCount: payload.projects.length,
+      tagCount: payload.projects.reduce((sum, project) => sum + ((project.tags || []).length), 0)
+    };
   }
 
   function refreshServiceWorker() {
@@ -3885,6 +4516,45 @@
       : mixColor(groupColor, "#000000", 0.1);
   }
 
+  function getEmotionResolvedColor(categoryId, groupLabel, tagLabel) {
+    if (categoryId && groupLabel && tagLabel) {
+      return getEmotionReferenceTagColor(categoryId, groupLabel, tagLabel);
+    }
+
+    if (categoryId && groupLabel) {
+      return getEmotionGroupColor(categoryId, groupLabel);
+    }
+
+    if (categoryId) {
+      return getEmotionCategoryDefaultColor(categoryId);
+    }
+
+    return "#d87354";
+  }
+
+  function resolveCanonicalTagColor(projectId, label, storedColor, extras, fallbackColor) {
+    const currentColor = safeColor(storedColor, fallbackColor || "#4f8f8b");
+    const normalizedFallback = safeColor(fallbackColor, "#4f8f8b");
+
+    if (projectId === "emotion" && extras && extras.categoryId) {
+      const canonical = getEmotionResolvedColor(extras.categoryId, extras.groupLabel || null, label);
+      if (!storedColor || currentColor === normalizedFallback) {
+        return canonical;
+      }
+      return currentColor;
+    }
+
+    if (projectId === "somatic" && findReferenceTagByLabel("somatic", label)) {
+      const canonical = getSomaticRecommendedColor(label);
+      if (!storedColor || currentColor === normalizedFallback || currentColor === "#5d7fca") {
+        return canonical;
+      }
+      return currentColor;
+    }
+
+    return currentColor;
+  }
+
   function referenceSelectStyle(color) {
     const accent = safeColor(color, "#d87354");
     const soft = mixColor(accent, "#ffffff", 0.86);
@@ -4142,16 +4812,25 @@
       builtin: false,
       color: safeColor(project.color, pickProjectColor(project.name || "custom")),
       tags: Array.isArray(project.tags)
-        ? project.tags.map((tag) => sanitizeTag(tag, project.color))
+        ? project.tags.map((tag) => sanitizeTag(tag, project.color, project.id))
         : []
     };
   }
 
-  function sanitizeTag(tag, fallbackColor) {
+  function sanitizeTag(tag, fallbackColor, projectId) {
     return {
       id: tag.id || createId("tag"),
       label: String(tag.label || "未命名标签").trim(),
-      color: safeColor(tag.color, fallbackColor || "#4f8f8b"),
+      color: resolveCanonicalTagColor(
+        projectId,
+        String(tag.label || "未命名标签").trim(),
+        tag.color,
+        {
+          categoryId: tag.categoryId || null,
+          groupLabel: tag.groupLabel || null
+        },
+        fallbackColor || "#4f8f8b"
+      ),
       builtin: Boolean(tag.builtin),
       categoryId: tag.categoryId || null,
       categoryName: tag.categoryName || null,
@@ -4181,14 +4860,32 @@
             existing.categoryId = existing.categoryId || item.categoryId || null;
             existing.categoryName = existing.categoryName || item.categoryName || null;
             existing.groupLabel = existing.groupLabel || item.groupLabel || null;
-            existing.color = safeColor(existing.color, item.color || project.color);
+            existing.color = resolveCanonicalTagColor(
+              project.id,
+              existing.label,
+              existing.color || item.color,
+              {
+                categoryId: existing.categoryId || item.categoryId || null,
+                groupLabel: existing.groupLabel || item.groupLabel || null
+              },
+              project.color
+            );
             return;
           }
 
           project.tags.push({
             id: item.tagId || createId(`${project.id}-tag`),
             label: item.label,
-            color: safeColor(item.color, project.color),
+            color: resolveCanonicalTagColor(
+              project.id,
+              item.label,
+              item.color,
+              {
+                categoryId: item.categoryId || null,
+                groupLabel: item.groupLabel || null
+              },
+              project.color
+            ),
             builtin: false,
             categoryId: item.categoryId || null,
             categoryName: item.categoryName || null,
@@ -4245,7 +4942,16 @@
               ? entry.entries.map((item) => ({
                 tagId: item.tagId || "",
                 label: String(item.label || ""),
-                color: safeColor(item.color, (getProjectFromList(projectList, entry.projectId) && getProjectFromList(projectList, entry.projectId).color) || "#4f8f8b"),
+                color: resolveCanonicalTagColor(
+                  entry.projectId,
+                  String(item.label || ""),
+                  item.color,
+                  {
+                    categoryId: item.categoryId || null,
+                    groupLabel: item.groupLabel || null
+                  },
+                  (getProjectFromList(projectList, entry.projectId) && getProjectFromList(projectList, entry.projectId).color) || "#4f8f8b"
+                ),
                 categoryId: item.categoryId || null,
                 categoryName: item.categoryName || null,
                 groupLabel: item.groupLabel || null,
@@ -4291,7 +4997,7 @@
       };
     }
 
-    const storedTags = Array.isArray(stored.tags) ? stored.tags.map((tag) => sanitizeTag(tag, builtin.color)) : [];
+    const storedTags = Array.isArray(stored.tags) ? stored.tags.map((tag) => sanitizeTag(tag, builtin.color, builtin.id)) : [];
     const mergedTags = [];
 
     builtinTags.forEach((tag) => {
@@ -4384,7 +5090,9 @@
         page: "root",
         libraryTab: "emotion",
         projectId: "",
-        drafts: createInitialSettingsDrafts()
+        drafts: createInitialSettingsDrafts(),
+        backupStatus: "",
+        pendingImport: null
       },
       export: {
         from: "",
@@ -4392,6 +5100,7 @@
         selectedProjectIds: state.projects.map((project) => project.id),
         preview: ""
       },
+      recentEditor: null,
       toastTimer: null
     };
   }
@@ -4411,6 +5120,74 @@
       eventText: "",
       childhoodEcho: ""
     };
+  }
+
+  function newRecentEditorDraft(record) {
+    const emotionEntry = (record.projectEntries || []).find((entry) => entry.projectId === "emotion");
+    const somaticEntry = (record.projectEntries || []).find((entry) => entry.projectId === "somatic");
+    const otherEntry = record.source === "other"
+      ? (record.projectEntries || []).find((entry) => entry.projectId !== "emotion" && entry.projectId !== "somatic") || record.projectEntries[0]
+      : null;
+
+    return {
+      recordId: record.id,
+      source: record.source,
+      createdAt: record.createdAt,
+      emotionQuery: "",
+      somaticQuery: "",
+      otherTagQuery: "",
+      selectedEmotionIds: ensureDraftTagIds("emotion", emotionEntry ? emotionEntry.entries : []),
+      selectedSomaticIds: ensureDraftTagIds("somatic", somaticEntry ? somaticEntry.entries : []),
+      selectedOtherTagIds: otherEntry ? ensureDraftTagIds(otherEntry.projectId, otherEntry.entries) : [],
+      otherProjectId: otherEntry ? otherEntry.projectId : "",
+      intensity: getDraftEmotionIntensity(emotionEntry ? emotionEntry.entries : []),
+      note: record.source === "other"
+        ? String((otherEntry && otherEntry.note) || record.note || "")
+        : String(record.note || ""),
+      bodyAreas: Array.isArray(record.bodyAreas) ? [...record.bodyAreas] : [],
+      eventText: String(record.eventText || ""),
+      childhoodEcho: String(record.childhoodEcho || "")
+    };
+  }
+
+  function ensureDraftTagIds(projectId, entries) {
+    const result = [];
+
+    (entries || []).forEach((item) => {
+      if (!item) return;
+
+      let tag = item.tagId ? getTag(projectId, item.tagId) : null;
+      if (!tag && item.label) {
+        tag = findTagByLabel(projectId, item.label);
+      }
+
+      if (!tag && item.label) {
+        const reference = findReferenceTagByLabel(projectId, item.label);
+        if (reference) {
+          tag = ensureReferenceTag(projectId, reference);
+        } else {
+          tag = ensureTag(projectId, item.label, item.color, {
+            categoryId: item.categoryId || null,
+            categoryName: item.categoryName || null,
+            groupLabel: item.groupLabel || null
+          });
+        }
+      }
+
+      if (tag && !result.includes(tag.id)) {
+        result.push(tag.id);
+      }
+    });
+
+    return result;
+  }
+
+  function getDraftEmotionIntensity(entries) {
+    const values = (entries || [])
+      .map((item) => Number(item && item.intensity))
+      .filter((value) => Number.isFinite(value) && value >= 1 && value <= 5);
+
+    return values[0] || 3;
   }
 
   function seedExportDefaults() {
@@ -4581,6 +5358,12 @@
     return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
+  function formatImportMoment(timestamp) {
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return "未知时间";
+    return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
   function formatMiniDay(dayKey) {
     const parts = dayKey.split("-");
     return `${Number(parts[1])}/${Number(parts[2])}`;
@@ -4716,8 +5499,7 @@
 
   function getSomaticReferenceColor(tag) {
     const label = tag && (tag.label || tag.id || "");
-    const explicitColor = tag && tag.color;
-    return safeColor(explicitColor, getSomaticRecommendedColor(label));
+    return getSomaticRecommendedColor(label);
   }
 
   function getEmotionCategoryHelperText(categoryId) {
