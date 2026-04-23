@@ -1736,22 +1736,24 @@
             <p class="field-subtle">${escapeHtml(getEmotionCategoryHelperText(draft.categoryId))}</p>
           </div>
         ` : isSomaticCreatorContext(context) ? `
-          <div class="form-block inline-gap">
-            <label class="field-label">所属身体部位</label>
-            <div class="choice-grid creator-body-area-grid">
-              ${DATA.bodyAreas.map((area) => bodyAreaChoiceChipMarkup({
-                label: area,
-                color: getBodyAreaColors()[area] || "#5a84c6",
-                active: draft.bodyArea === area,
-                dataset: {
-                  creatorAction: "choose-body-area",
-                  creatorContext: context,
-                  bodyArea: area
-                }
-              })).join("")}
-            </div>
-          </div>
           <div class="input-grid two-up">
+            <div class="form-block inline-gap">
+              <label class="field-label" for="creator-body-area-${context}">所属身体部位</label>
+              <select
+                id="creator-body-area-${context}"
+                class="reference-select"
+                style="${referenceSelectStyle(getSomaticBodyAreaAccentColor(draft.bodyArea, draft.label))}"
+                data-creator-context="${context}"
+                data-creator-field="bodyArea"
+              >
+                <option value="">请选择身体部位</option>
+                ${DATA.bodyAreas.map((area) => `
+                  <option value="${escapeHtml(area)}" ${draft.bodyArea === area ? "selected" : ""}>
+                    ${escapeHtml(area)}
+                  </option>
+                `).join("")}
+              </select>
+            </div>
             <div class="form-block inline-gap">
               <label class="field-label" for="creator-color-${context}">标签颜色</label>
               <input
@@ -1811,27 +1813,6 @@
           ></button>
         `).join("")}
       </div>
-    `;
-  }
-
-  function bodyAreaChoiceChipMarkup({ label, color, active, dataset }) {
-    const attrs = Object.entries(dataset || {})
-      .map(([key, value]) => `data-${toDataAttr(key)}="${escapeHtml(String(value))}"`)
-      .join(" ");
-    const areaColor = safeColor(color, "#5a84c6");
-    const areaSoft = mixColor(areaColor, "#ffffff", 0.88);
-    const areaStrong = mixColor(areaColor, "#ffffff", 0.72);
-
-    return `
-      <button
-        type="button"
-        class="choice-chip creator-area-chip ${active ? "active" : ""}"
-        ${attrs}
-        style="--area-color:${areaColor};--area-soft:${areaSoft};--area-strong:${areaStrong}"
-      >
-        <span class="tag-dot" style="--dot-color:${areaColor}"></span>
-        <span>${escapeHtml(label)}</span>
-      </button>
     `;
   }
 
@@ -1939,13 +1920,6 @@
       return;
     }
 
-    if (actionButton.dataset.creatorAction === "choose-body-area") {
-      draft.bodyArea = actionButton.dataset.bodyArea || "";
-      draft.color = getSomaticRecommendedColor(draft.label, draft.bodyArea);
-      renderCreatorContext(context);
-      return;
-    }
-
     if (actionButton.dataset.creatorAction === "cancel") {
       clearCreatorDraft(context);
       renderCreatorContext(context);
@@ -1984,6 +1958,13 @@
     if (field === "categoryId") {
       draft.categoryId = target.value;
       draft.color = getEmotionCategoryDefaultColor(target.value);
+      renderCreatorContext(context);
+      return;
+    }
+
+    if (field === "bodyArea") {
+      draft.bodyArea = target.value;
+      draft.color = getSomaticRecommendedColor(draft.label, target.value);
       renderCreatorContext(context);
       return;
     }
@@ -2115,22 +2096,18 @@
               <p class="field-subtle">${escapeHtml(getEmotionCategoryHelperText(draft.categoryId))}</p>
             </div>
           ` : `
-            <div class="form-block inline-gap">
-              <label class="field-label">所属身体部位</label>
-              <div class="choice-grid creator-body-area-grid">
-                ${DATA.bodyAreas.map((area) => bodyAreaChoiceChipMarkup({
-                  label: area,
-                  color: getBodyAreaColors()[area] || "#5a84c6",
-                  active: draft.bodyArea === area,
-                  dataset: {
-                    settingsAction: "choose-library-body-area",
-                    projectId: project.id,
-                    bodyArea: area
-                  }
-                })).join("")}
-              </div>
-            </div>
             <div class="input-grid two-up">
+              <div class="form-block inline-gap">
+                <label class="field-label" for="library-tag-body-area">所属身体部位</label>
+                <select id="library-tag-body-area" class="reference-select" style="${referenceSelectStyle(getSomaticBodyAreaAccentColor(draft.bodyArea, draft.name))}">
+                  <option value="">请选择身体部位</option>
+                  ${DATA.bodyAreas.map((area) => `
+                    <option value="${escapeHtml(area)}" ${draft.bodyArea === area ? "selected" : ""}>
+                      ${escapeHtml(area)}
+                    </option>
+                  `).join("")}
+                </select>
+              </div>
               <div class="form-block inline-gap">
                 <label class="field-label" for="library-tag-color">标签颜色</label>
                 <input id="library-tag-color" type="color" value="${safeColor(draft.color)}" aria-label="标签颜色">
@@ -3290,14 +3267,6 @@
       return;
     }
 
-    if (action === "choose-library-body-area") {
-      const draft = getLibraryTagDraft(actionButton.dataset.projectId);
-      draft.bodyArea = actionButton.dataset.bodyArea || "";
-      draft.color = getSomaticRecommendedColor(draft.name, draft.bodyArea);
-      renderSettings();
-      return;
-    }
-
     if (action === "choose-new-project-color") {
       ui.settings.drafts.newProject.color = safeColor(actionButton.dataset.color, ui.settings.drafts.newProject.color);
       renderSettings();
@@ -3483,6 +3452,14 @@
       const draft = getLibraryTagDraft("emotion");
       draft.categoryId = target.value;
       draft.color = safeColor(getEmotionCategoryDefaultColor(target.value), draft.color);
+      renderSettings();
+      return;
+    }
+
+    if (target.id === "library-tag-body-area") {
+      const draft = getLibraryTagDraft("somatic");
+      draft.bodyArea = target.value;
+      draft.color = getSomaticRecommendedColor(draft.name, target.value);
       renderSettings();
       return;
     }
@@ -5921,6 +5898,11 @@
   function getSomaticReferenceColor(tag) {
     const label = tag && (tag.label || tag.id || "");
     return getSomaticRecommendedColor(label, getSomaticReferenceBodyArea(tag));
+  }
+
+  function getSomaticBodyAreaAccentColor(bodyArea, label) {
+    const resolvedArea = bodyArea || getSomaticSuggestedBodyArea(label);
+    return getBodyAreaColors()[resolvedArea] || getSomaticRecommendedColor(label, bodyArea);
   }
 
   function getSomaticBodyAreaHelperText(bodyArea) {

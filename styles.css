@@ -859,27 +859,6 @@ p {
   box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.28);
 }
 
-.creator-body-area-grid {
-  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
-}
-
-.creator-area-chip {
-  justify-content: flex-start;
-  padding-inline: 12px;
-  border-color: rgba(73, 57, 45, 0.1);
-}
-
-.creator-area-chip.active {
-  color: var(--ink);
-  background: linear-gradient(135deg, var(--area-soft, rgba(255, 255, 255, 0.88)), var(--area-strong, rgba(255, 255, 255, 0.74)));
-  border-color: rgba(73, 57, 45, 0.12);
-  box-shadow: 0 10px 22px rgba(83, 62, 45, 0.08);
-}
-
-.creator-area-chip.active .tag-dot {
-  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.68);
-}
-
 .group-title {
   margin-bottom: 8px;
   color: var(--muted);
