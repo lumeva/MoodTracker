@@ -1192,12 +1192,9 @@
       .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
       .slice(0, 50);
 
-    if (!recent.length) {
-      els.recentRecords.innerHTML = renderEmptyState("还没有记录。你可以先从首页快速记录，或者去引导页慢慢整理一次。");
-      return;
-    }
-
-    els.recentRecords.innerHTML = recent.map((record) => `
+    const filteredRecent = filterRecentRecords(recent);
+    const resultMeta = buildRecentSearchMeta(recent.length, filteredRecent.length);
+    const cards = filteredRecent.map((record) => `
       <article class="record-card">
         <div class="record-header">
           <div>
@@ -1217,6 +1214,109 @@
         </div>
       </article>
     `).join("");
+
+    const emptyMessage = recent.length
+      ? "没有匹配记录，换个关键词试试。"
+      : "还没有记录。你可以先从首页快速记录，或者去引导页慢慢整理一次。";
+
+    els.recentRecords.innerHTML = `
+      ${recentSearchHeaderMarkup()}
+      ${resultMeta ? `<p class="record-search-meta">${escapeHtml(resultMeta)}</p>` : ""}
+      ${cards || renderEmptyState(emptyMessage)}
+    `;
+  }
+
+  function recentSearchHeaderMarkup() {
+    const projectOptions = getRecentSearchProjectOptions();
+    return `
+      <div class="record-search-head">
+        <h3>最近记录</h3>
+        <button
+          type="button"
+          class="mini-button icon-button ${ui.recentSearch.open ? "active" : ""}"
+          data-recent-action="toggle-search"
+          aria-label="${ui.recentSearch.open ? "收起搜索" : "展开搜索"}"
+        >
+          <span class="icon-lens" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <circle cx="11" cy="11" r="6.5"></circle>
+              <path d="M16.2 16.2L21 21"></path>
+            </svg>
+          </span>
+        </button>
+      </div>
+      ${ui.recentSearch.open ? `
+        <div class="record-search-panel">
+          <div class="input-shell">
+            <input
+              id="recent-search-query"
+              type="text"
+              autocomplete="off"
+              placeholder="搜索关键词（会匹配标签、备注、事件等）"
+              value="${escapeHtml(ui.recentSearch.query)}"
+            >
+          </div>
+          <div class="record-search-actions">
+            <select id="recent-search-project" class="reference-select">
+              ${projectOptions.map((option) => `
+                <option value="${escapeHtml(option.id)}" ${ui.recentSearch.projectId === option.id ? "selected" : ""}>${escapeHtml(option.label)}</option>
+              `).join("")}
+            </select>
+            <button type="button" class="ghost-button" data-recent-action="clear-search">清空</button>
+          </div>
+        </div>
+      ` : ""}
+    `;
+  }
+
+  function getRecentSearchProjectOptions() {
+    const options = [{ id: "", label: "全部项目" }];
+    const seen = new Set();
+
+    state.projects.forEach((project) => {
+      if (!project || seen.has(project.id)) return;
+      seen.add(project.id);
+      options.push({ id: project.id, label: project.name });
+    });
+
+    return options;
+  }
+
+  function filterRecentRecords(records) {
+    const query = String(ui.recentSearch.query || "").trim().toLowerCase();
+    const projectId = ui.recentSearch.projectId || "";
+
+    return records.filter((record) => {
+      if (projectId && !record.projectEntries.some((entry) => entry.projectId === projectId)) {
+        return false;
+      }
+      if (!query) return true;
+      return buildRecentSearchText(record).includes(query);
+    });
+  }
+
+  function buildRecentSearchText(record) {
+    const chunks = [
+      sourceLabel(record.source),
+      record.note || "",
+      record.eventText || "",
+      record.childhoodEcho || "",
+      ...(record.bodyAreas || [])
+    ];
+
+    (record.projectEntries || []).forEach((entry) => {
+      chunks.push(entry.projectName || "", entry.note || "");
+      (entry.entries || []).forEach((item) => {
+        chunks.push(item.label || "");
+      });
+    });
+
+    return chunks.join(" ").toLowerCase();
+  }
+
+  function buildRecentSearchMeta(total, matched) {
+    if (!ui.recentSearch.query.trim() && !ui.recentSearch.projectId) return "";
+    return `匹配 ${matched} / ${total} 条`;
   }
 
   function recentEditorMarkup(draft, record) {
@@ -2811,6 +2911,23 @@
     const actionButton = event.target.closest("[data-recent-action]");
     if (actionButton) {
       const action = actionButton.dataset.recentAction;
+      if (action === "toggle-search") {
+        ui.recentSearch.open = !ui.recentSearch.open;
+        if (!ui.recentSearch.open && !ui.recentSearch.query.trim() && !ui.recentSearch.projectId) {
+          ui.recentSearch.query = "";
+          ui.recentSearch.projectId = "";
+        }
+        renderRecentRecords();
+        return;
+      }
+
+      if (action === "clear-search") {
+        ui.recentSearch.query = "";
+        ui.recentSearch.projectId = "";
+        renderRecentRecords();
+        return;
+      }
+
       if (action === "edit") {
         openRecentEditor(actionButton.dataset.recordId);
         return;
@@ -2849,9 +2966,15 @@
 
   function onRecentRecordsInput(event) {
     const draft = ui.recentEditor;
-    if (!draft) return;
-
     const target = event.target;
+
+    if (target.id === "recent-search-query") {
+      ui.recentSearch.query = target.value;
+      renderRecentRecords();
+      return;
+    }
+
+    if (!draft) return;
 
     if (target.id === "recent-edit-emotion-input") {
       draft.emotionQuery = target.value;
@@ -2891,6 +3014,13 @@
 
   function onRecentRecordsChange(event) {
     const draft = ui.recentEditor;
+
+    if (event.target.id === "recent-search-project") {
+      ui.recentSearch.projectId = event.target.value || "";
+      renderRecentRecords();
+      return;
+    }
+
     if (!draft) return;
 
     if (event.target.id === "recent-edit-intensity") {
@@ -6067,6 +6197,11 @@
         to: "",
         selectedProjectIds: state.projects.map((project) => project.id),
         preview: ""
+      },
+      recentSearch: {
+        open: false,
+        query: "",
+        projectId: ""
       },
       recentEditor: null,
       toastTimer: null
