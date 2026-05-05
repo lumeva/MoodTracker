@@ -531,7 +531,15 @@
 
       return `
         <div class="selected-chip entry-chip" title="${escapeHtml(hint)}">
-          <span class="selected-chip__label">${escapeHtml(title)}</span>
+          <button
+            type="button"
+            class="entry-chip-main"
+            data-action="apply-other-record"
+            data-record-id="${record.id}"
+            aria-label="快速填充：${escapeHtml(title)}"
+          >
+            <span class="selected-chip__label">${escapeHtml(title)}</span>
+          </button>
           <button
             type="button"
             class="chip-remove"
@@ -2868,18 +2876,47 @@
 
   function onOtherRecordStripClick(event) {
     const button = event.target.closest("[data-action='delete-other-record']");
-    if (!button) return;
+    if (button) {
+      const record = state.records.find((item) => item.id === button.dataset.recordId);
+      if (!record) return;
 
-    const record = state.records.find((item) => item.id === button.dataset.recordId);
-    if (!record) return;
+      const ok = window.confirm("删除这条其他项目记录后将无法恢复，确定继续吗？");
+      if (!ok) return;
 
-    const ok = window.confirm("删除这条其他项目记录后将无法恢复，确定继续吗？");
-    if (!ok) return;
+      state.records = state.records.filter((item) => item.id !== record.id);
+      saveState();
+      renderApp();
+      toast("已删除这条其他项目记录");
+      return;
+    }
 
-    state.records = state.records.filter((item) => item.id !== record.id);
-    saveState();
-    renderApp();
-    toast("已删除这条其他项目记录");
+    const applyButton = event.target.closest("[data-action='apply-other-record']");
+    if (!applyButton) return;
+
+    const record = state.records.find((item) => item.id === applyButton.dataset.recordId);
+    if (!record || !Array.isArray(record.projectEntries) || !record.projectEntries.length) return;
+
+    const entry = record.projectEntries[0];
+    const tag = entry.entries && entry.entries[0];
+    if (!entry.projectId || !tag || !tag.label) return;
+
+    const project = getProject(entry.projectId);
+    if (!project) return;
+
+    selectOtherProject(project.id);
+    const resolvedTag = tag.tagId
+      ? getTag(project.id, tag.tagId)
+      : findTagByLabel(project.id, tag.label) || ensureTag(project.id, tag.label, tag.color || project.color);
+
+    if (resolvedTag) {
+      selectOtherTag(project.id, resolvedTag.id);
+    } else {
+      ui.other.tagQuery = tag.label;
+      ui.other.selectedTagId = "";
+    }
+
+    renderHome();
+    toast("已填入项目和标签，可直接补充说明并保存");
   }
 
   function openRecentEditor(recordId) {
