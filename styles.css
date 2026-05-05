@@ -1330,7 +1330,7 @@ p {
 .record-search-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
   margin-bottom: 10px;
 }
@@ -1344,12 +1344,16 @@ p {
   min-width: 36px;
   padding: 0;
   justify-content: center;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: var(--muted);
 }
 
 .icon-button.active {
   color: var(--ink);
-  background: var(--chip-create-bg);
-  border-color: var(--border-strong);
+  background: transparent;
+  border-color: transparent;
 }
 
 .icon-lens {
@@ -1383,6 +1387,11 @@ p {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
+}
+
+.record-search-action-buttons {
+  display: inline-flex;
+  gap: 8px;
 }
 
 .record-search-actions .reference-select {

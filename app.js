@@ -1200,48 +1200,21 @@
       .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
       .slice(0, 50);
 
-    const filteredRecent = filterRecentRecords(recent);
-    const resultMeta = buildRecentSearchMeta(recent.length, filteredRecent.length);
-    const cards = filteredRecent.map((record) => `
-      <article class="record-card">
-        <div class="record-header">
-          <div>
-            <h4>${escapeHtml(formatFullRecordMoment(record.createdAt))}</h4>
-            <div class="record-meta">${escapeHtml(sourceLabel(record.source))}${record.projectEntries.length ? ` · ${escapeHtml(record.projectEntries.map((entry) => entry.projectName).join(" / "))}` : ""}</div>
-          </div>
-          <button
-            type="button"
-            class="mini-button"
-            data-recent-action="edit"
-            data-record-id="${record.id}"
-          >编辑</button>
-        </div>
-        ${recordBodyMarkup(record)}
-        <div class="record-entry-list">
-          ${record.projectEntries.map((entry) => recordEntryMarkup(entry)).join("")}
-        </div>
-      </article>
-    `).join("");
-
-    const emptyMessage = recent.length
-      ? "没有匹配记录，换个关键词试试。"
-      : "还没有记录。你可以先从首页快速记录，或者去引导页慢慢整理一次。";
-
     els.recentRecords.innerHTML = `
       ${recentSearchHeaderMarkup()}
-      ${resultMeta ? `<p class="record-search-meta">${escapeHtml(resultMeta)}</p>` : ""}
-      ${cards || renderEmptyState(emptyMessage)}
+      <div id="recent-search-meta-slot"></div>
+      <div id="recent-search-results-slot"></div>
     `;
+    renderRecentSearchResults(recent);
   }
 
   function recentSearchHeaderMarkup() {
     const projectOptions = getRecentSearchProjectOptions();
     return `
       <div class="record-search-head">
-        <h3>最近记录</h3>
         <button
           type="button"
-          class="mini-button icon-button ${ui.recentSearch.open ? "active" : ""}"
+          class="icon-button ${ui.recentSearch.open ? "active" : ""}"
           data-recent-action="toggle-search"
           aria-label="${ui.recentSearch.open ? "收起搜索" : "展开搜索"}"
         >
@@ -1270,11 +1243,58 @@
                 <option value="${escapeHtml(option.id)}" ${ui.recentSearch.projectId === option.id ? "selected" : ""}>${escapeHtml(option.label)}</option>
               `).join("")}
             </select>
-            <button type="button" class="ghost-button" data-recent-action="clear-search">清空</button>
+            <div class="record-search-action-buttons">
+              <button type="button" class="ghost-button" data-recent-action="clear-search">清空</button>
+              <button type="button" class="ghost-button" data-recent-action="close-search">返回</button>
+            </div>
           </div>
         </div>
       ` : ""}
     `;
+  }
+
+  function renderRecentSearchResults(preloadedRecent) {
+    const recent = Array.isArray(preloadedRecent)
+      ? preloadedRecent
+      : [...state.records]
+        .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+        .slice(0, 50);
+
+    const filteredRecent = filterRecentRecords(recent);
+    const resultMeta = buildRecentSearchMeta(recent.length, filteredRecent.length);
+    const cards = filteredRecent.map((record) => `
+      <article class="record-card">
+        <div class="record-header">
+          <div>
+            <h4>${escapeHtml(formatFullRecordMoment(record.createdAt))}</h4>
+            <div class="record-meta">${escapeHtml(sourceLabel(record.source))}${record.projectEntries.length ? ` · ${escapeHtml(record.projectEntries.map((entry) => entry.projectName).join(" / "))}` : ""}</div>
+          </div>
+          <button
+            type="button"
+            class="mini-button"
+            data-recent-action="edit"
+            data-record-id="${record.id}"
+          >编辑</button>
+        </div>
+        ${recordBodyMarkup(record)}
+        <div class="record-entry-list">
+          ${record.projectEntries.map((entry) => recordEntryMarkup(entry)).join("")}
+        </div>
+      </article>
+    `).join("");
+
+    const emptyMessage = recent.length
+      ? "没有匹配记录，换个关键词试试。"
+      : "还没有记录。你可以先从首页快速记录，或者去引导页慢慢整理一次。";
+
+    const metaSlot = document.getElementById("recent-search-meta-slot");
+    const resultSlot = document.getElementById("recent-search-results-slot");
+    if (metaSlot) {
+      metaSlot.innerHTML = resultMeta ? `<p class="record-search-meta">${escapeHtml(resultMeta)}</p>` : "";
+    }
+    if (resultSlot) {
+      resultSlot.innerHTML = cards || renderEmptyState(emptyMessage);
+    }
   }
 
   function getRecentSearchProjectOptions() {
@@ -2949,8 +2969,9 @@
     if (actionButton) {
       const action = actionButton.dataset.recentAction;
       if (action === "toggle-search") {
-        ui.recentSearch.open = !ui.recentSearch.open;
-        if (!ui.recentSearch.open && !ui.recentSearch.query.trim() && !ui.recentSearch.projectId) {
+        const nextOpen = !ui.recentSearch.open;
+        ui.recentSearch.open = nextOpen;
+        if (!nextOpen) {
           ui.recentSearch.query = "";
           ui.recentSearch.projectId = "";
         }
@@ -2959,6 +2980,14 @@
       }
 
       if (action === "clear-search") {
+        ui.recentSearch.query = "";
+        ui.recentSearch.projectId = "";
+        renderRecentRecords();
+        return;
+      }
+
+      if (action === "close-search") {
+        ui.recentSearch.open = false;
         ui.recentSearch.query = "";
         ui.recentSearch.projectId = "";
         renderRecentRecords();
@@ -3007,7 +3036,7 @@
 
     if (target.id === "recent-search-query") {
       ui.recentSearch.query = target.value;
-      renderRecentRecords();
+      renderRecentSearchResults();
       return;
     }
 
@@ -3054,7 +3083,7 @@
 
     if (event.target.id === "recent-search-project") {
       ui.recentSearch.projectId = event.target.value || "";
-      renderRecentRecords();
+      renderRecentSearchResults();
       return;
     }
 
