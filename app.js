@@ -423,7 +423,7 @@
 
   function renderQuickSomaticSuggestions() {
     if (!String(ui.quick.somaticQuery || "").trim() && !ui.quick.selectedSomaticIds.length) {
-      els.quickSomaticSuggestions.innerHTML = "";
+      els.quickSomaticSuggestions.innerHTML = `<div class="empty-inline"></div>`;
       return;
     }
 
