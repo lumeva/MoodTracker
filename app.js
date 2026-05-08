@@ -422,6 +422,11 @@
   }
 
   function renderQuickSomaticSuggestions() {
+    if (!String(ui.quick.somaticQuery || "").trim() && !ui.quick.selectedSomaticIds.length) {
+      els.quickSomaticSuggestions.innerHTML = "";
+      return;
+    }
+
     renderTagSuggestionList(els.quickSomaticSuggestions, {
       context: "quick-somatic",
       projectId: "somatic",
@@ -1200,7 +1205,6 @@
 
     els.recentRecords.innerHTML = `
       ${recentSearchHeaderMarkup()}
-      <div id="recent-search-meta-slot"></div>
       <div id="recent-search-results-slot"></div>
     `;
     renderRecentSearchResults(recent);
@@ -1280,13 +1284,12 @@
       ? "没有匹配记录，换个关键词试试。"
       : "还没有记录。你可以先从首页快速记录，或者去引导页慢慢整理一次。";
 
-    const metaSlot = document.getElementById("recent-search-meta-slot");
     const resultSlot = document.getElementById("recent-search-results-slot");
-    if (metaSlot) {
-      metaSlot.innerHTML = resultMeta ? `<p class="record-search-meta">${escapeHtml(resultMeta)}</p>` : "";
-    }
     if (resultSlot) {
-      resultSlot.innerHTML = cards || renderEmptyState(emptyMessage);
+      resultSlot.innerHTML = `
+        ${resultMeta ? `<p class="record-search-meta">${escapeHtml(resultMeta)}</p>` : ""}
+        ${cards || renderEmptyState(emptyMessage)}
+      `;
     }
   }
 
