@@ -2711,8 +2711,9 @@
 
     const trimmed = String(query || "").trim();
     const suggestions = getTagSuggestions(projectId, trimmed, selectedIds || [], 8);
-    const allowReferenceSuggestions = !String(context || "").startsWith("quick-");
-    const referenceSuggestions = allowReferenceSuggestions && (trimmed || projectId === "somatic")
+    const isQuickContext = String(context || "").startsWith("quick-");
+    const allowReferenceSuggestions = isQuickContext ? Boolean(trimmed) : (trimmed || projectId === "somatic");
+    const referenceSuggestions = allowReferenceSuggestions
       ? getReferenceTagSuggestions(projectId, trimmed, selectedIds || [], Math.max(0, 8 - suggestions.length))
       : [];
     const creatorDraft = getCreatorDraft(context);
