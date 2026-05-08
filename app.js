@@ -114,6 +114,7 @@
     els.otherProjectInput = document.getElementById("other-project-input");
     els.otherProjectSuggestions = document.getElementById("other-project-suggestions");
     els.otherProjectCreator = document.getElementById("other-project-creator");
+    els.otherTagSelected = document.getElementById("other-tag-selected");
     els.otherTagInput = document.getElementById("other-tag-input");
     els.otherTagSuggestions = document.getElementById("other-tag-suggestions");
     els.otherTagCreator = document.getElementById("other-tag-creator");
@@ -209,7 +210,7 @@
       ui.other.projectQuery = value;
       if (!projectNameMatchesSelection(value)) {
         ui.other.selectedProjectId = "";
-        ui.other.selectedTagId = "";
+        ui.other.selectedTagIds = [];
         ui.other.tagQuery = "";
         els.otherTagInput.value = "";
       }
@@ -223,9 +224,6 @@
 
     bindAutocompleteInput(els.otherTagInput, (value) => {
       ui.other.tagQuery = value;
-      if (!tagNameMatchesOtherSelection(value)) {
-        ui.other.selectedTagId = "";
-      }
       syncCreatorDraft("other-tag", value, { projectId: ui.other.selectedProjectId });
       renderOtherTagSuggestions();
       renderOtherTagCreator();
@@ -233,6 +231,7 @@
 
     els.otherProjectSuggestions.addEventListener("click", onSuggestionClick);
     els.otherTagSuggestions.addEventListener("click", onSuggestionClick);
+    els.otherTagSelected.addEventListener("click", onOtherSelectedTagClick);
     els.otherNote.addEventListener("input", (event) => {
       ui.other.note = event.target.value;
     });
@@ -441,6 +440,12 @@
     els.otherTagInput.value = ui.other.tagQuery;
     els.otherNote.value = ui.other.note;
 
+    renderSelectedStrip(els.otherTagSelected, {
+      projectId: ui.other.selectedProjectId,
+      selectedIds: ui.other.selectedTagIds,
+      removeDataset: { action: "remove-other-selected-tag" },
+      emptyText: ""
+    });
     renderOtherProjectSuggestions();
     renderOtherProjectCreator();
     renderOtherTagSuggestions();
@@ -506,7 +511,7 @@
       context: "other-tag",
       projectId: project.id,
       query: ui.other.tagQuery,
-      selectedIds: ui.other.selectedTagId ? [ui.other.selectedTagId] : [],
+      selectedIds: ui.other.selectedTagIds,
       emptyText: `这里会联想“${project.name}”项目里已经用过的标签。`
     });
   }
@@ -516,37 +521,30 @@
   }
 
   function renderRecentOtherEntries() {
-    const recent = getRecentOtherRecords(8);
+    const recent = getRecentOtherTagPairs(8);
 
     if (!recent.length) {
       els.otherRecordsSelected.innerHTML = "";
       return;
     }
 
-    els.otherRecordsSelected.innerHTML = recent.map((record) => {
-      const entry = record.projectEntries[0];
-      const tag = entry && entry.entries && entry.entries[0];
-      const title = tag ? `${entry.projectName} · ${tag.label}` : entry.projectName;
-      const hint = [formatRecordMoment(record.createdAt), record.slotName].filter(Boolean).join(" · ");
+    els.otherRecordsSelected.innerHTML = recent.map((item) => {
+      const title = `${item.projectName} · ${item.tagLabel}`;
+      const hint = [formatRecordMoment(item.createdAt), item.slotName].filter(Boolean).join(" · ");
 
       return `
         <div class="selected-chip entry-chip" title="${escapeHtml(hint)}">
           <button
             type="button"
             class="entry-chip-main"
-            data-action="apply-other-record"
-            data-record-id="${record.id}"
+            data-action="apply-other-pair"
+            data-project-id="${item.projectId}"
+            data-tag-id="${item.tagId}"
+            data-tag-label="${escapeHtml(item.tagLabel)}"
             aria-label="快速填充：${escapeHtml(title)}"
           >
             <span class="selected-chip__label">${escapeHtml(title)}</span>
           </button>
-          <button
-            type="button"
-            class="chip-remove"
-            data-action="delete-other-record"
-            data-record-id="${record.id}"
-            aria-label="删除这条记录"
-          >×</button>
         </div>
       `;
     }).join("");
@@ -2160,7 +2158,7 @@
       const tag = ensureTag(project.id, draft.label, draft.color);
       clearCreatorDraft(context);
       if (context === "other-tag") {
-        selectOtherTag(project.id, tag.id);
+        addOtherTagById(project.id, tag.id);
         renderHome();
       } else {
         addRecentEditorTagById("other", tag.id);
@@ -2890,48 +2888,35 @@
   }
 
   function onOtherRecordStripClick(event) {
-    const button = event.target.closest("[data-action='delete-other-record']");
-    if (button) {
-      const record = state.records.find((item) => item.id === button.dataset.recordId);
-      if (!record) return;
-
-      const ok = window.confirm("删除这条其他项目记录后将无法恢复，确定继续吗？");
-      if (!ok) return;
-
-      state.records = state.records.filter((item) => item.id !== record.id);
-      saveState();
-      renderApp();
-      toast("已删除这条其他项目记录");
-      return;
-    }
-
-    const applyButton = event.target.closest("[data-action='apply-other-record']");
+    const applyButton = event.target.closest("[data-action='apply-other-pair']");
     if (!applyButton) return;
 
-    const record = state.records.find((item) => item.id === applyButton.dataset.recordId);
-    if (!record || !Array.isArray(record.projectEntries) || !record.projectEntries.length) return;
-
-    const entry = record.projectEntries[0];
-    const tag = entry.entries && entry.entries[0];
-    if (!entry.projectId || !tag || !tag.label) return;
-
-    const project = getProject(entry.projectId);
+    const projectId = applyButton.dataset.projectId || "";
+    const tagId = applyButton.dataset.tagId || "";
+    const tagLabel = applyButton.dataset.tagLabel || "";
+    const project = getProject(projectId);
     if (!project) return;
 
     selectOtherProject(project.id);
-    const resolvedTag = tag.tagId
-      ? getTag(project.id, tag.tagId)
-      : findTagByLabel(project.id, tag.label) || ensureTag(project.id, tag.label, tag.color || project.color);
+    const resolvedTag = tagId
+      ? getTag(project.id, tagId)
+      : findTagByLabel(project.id, tagLabel) || ensureTag(project.id, tagLabel, project.color);
 
     if (resolvedTag) {
-      selectOtherTag(project.id, resolvedTag.id);
+      addOtherTagById(project.id, resolvedTag.id);
     } else {
-      ui.other.tagQuery = tag.label;
-      ui.other.selectedTagId = "";
+      ui.other.tagQuery = tagLabel;
     }
 
     renderHome();
     toast("已填入项目和标签，可直接补充说明并保存");
+  }
+
+  function onOtherSelectedTagClick(event) {
+    const button = event.target.closest("[data-action='remove-other-selected-tag']");
+    if (!button) return;
+    removeFromArray(ui.other.selectedTagIds, button.dataset.tagId);
+    renderOtherProjectInputs();
   }
 
   function openRecentEditor(recordId) {
@@ -3312,7 +3297,7 @@
     }
 
     if (dataset.context === "other-tag") {
-      selectOtherTag(projectId, tagId);
+      addOtherTagById(projectId, tagId);
       renderHome();
       return;
     }
@@ -4005,7 +3990,7 @@
 
     const tag = findTagByLabel(project.id, query);
     if (tag) {
-      selectOtherTag(project.id, tag.id);
+      addOtherTagById(project.id, tag.id);
       renderHome();
       return;
     }
@@ -4022,19 +4007,21 @@
     clearCreatorDraft("other-tag");
     ui.other.selectedProjectId = project.id;
     ui.other.projectQuery = project.name;
-    ui.other.selectedTagId = "";
+    ui.other.selectedTagIds = [];
     ui.other.tagQuery = "";
   }
 
-  function selectOtherTag(projectId, tagId) {
+  function addOtherTagById(projectId, tagId) {
     const tag = getTag(projectId, tagId);
     if (!tag) return;
 
     clearCreatorDraft("other-tag");
     ui.other.selectedProjectId = projectId;
     ui.other.projectQuery = getProject(projectId).name;
-    ui.other.selectedTagId = tag.id;
-    ui.other.tagQuery = tag.label;
+    if (!ui.other.selectedTagIds.includes(tag.id)) {
+      ui.other.selectedTagIds.push(tag.id);
+    }
+    ui.other.tagQuery = "";
   }
 
   function saveQuickRecord() {
@@ -4103,16 +4090,23 @@
       return;
     }
 
-    if (!tagLabel) {
+    if (!ui.other.selectedTagIds.length && !tagLabel) {
       toast("再写一个标签，后面统计和回看会更清楚。");
       return;
     }
 
-    const tag = ui.other.selectedTagId
-      ? getTag(project.id, ui.other.selectedTagId)
-      : findTagByLabel(project.id, tagLabel) || ensureTag(project.id, tagLabel, project.color);
+    if (tagLabel) {
+      const pendingTag = findTagByLabel(project.id, tagLabel) || ensureTag(project.id, tagLabel, project.color);
+      if (pendingTag && !ui.other.selectedTagIds.includes(pendingTag.id)) {
+        ui.other.selectedTagIds.push(pendingTag.id);
+      }
+    }
 
-    if (!tag) {
+    const tags = ui.other.selectedTagIds
+      .map((id) => getTag(project.id, id))
+      .filter(Boolean);
+
+    if (!tags.length) {
       toast("这个标签暂时没有创建成功，请再试一次。");
       return;
     }
@@ -4123,7 +4117,7 @@
       projectId: project.id,
       projectName: project.name,
       projectColor: project.color,
-      entries: [toTagEntry(project, tag.id)],
+      entries: tags.map((tag) => toTagEntry(project, tag.id)).filter(Boolean),
       note
     });
 
@@ -4132,7 +4126,7 @@
 
     clearCreatorDraft("other-tag");
     ui.other.tagQuery = "";
-    ui.other.selectedTagId = "";
+    ui.other.selectedTagIds = [];
     ui.other.note = "";
 
     renderApp();
@@ -4311,7 +4305,7 @@
 
     if (ui.other.selectedProjectId === projectId) {
       ui.other.selectedProjectId = "";
-      ui.other.selectedTagId = "";
+      ui.other.selectedTagIds = [];
       ui.other.projectQuery = "";
       ui.other.tagQuery = "";
     }
@@ -4343,9 +4337,8 @@
       removeFromArray(ui.guided.selectedSomaticIds, tagId);
     }
 
-    if (ui.other.selectedProjectId === projectId && ui.other.selectedTagId === tagId) {
-      ui.other.selectedTagId = "";
-      ui.other.tagQuery = "";
+    if (ui.other.selectedProjectId === projectId) {
+      removeFromArray(ui.other.selectedTagIds, tagId);
     }
 
     saveState();
@@ -4392,12 +4385,6 @@
   function projectNameMatchesSelection(value) {
     const project = getProject(ui.other.selectedProjectId);
     return project ? normalizeLabel(project.name) === normalizeLabel(value) : false;
-  }
-
-  function tagNameMatchesOtherSelection(value) {
-    if (!ui.other.selectedProjectId || !ui.other.selectedTagId) return false;
-    const tag = getTag(ui.other.selectedProjectId, ui.other.selectedTagId);
-    return tag ? normalizeLabel(tag.label) === normalizeLabel(value) : false;
   }
 
   function generateExportText() {
@@ -5570,11 +5557,34 @@
     }, {});
   }
 
-  function getRecentOtherRecords(limit) {
-    return [...state.records]
+  function getRecentOtherTagPairs(limit) {
+    const pairs = [];
+    const seen = new Set();
+    const recent = [...state.records]
       .filter((record) => record.source === "other")
-      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
-      .slice(0, limit);
+      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+
+    recent.forEach((record) => {
+      (record.projectEntries || []).forEach((entry) => {
+        (entry.entries || []).forEach((item) => {
+          const label = String(item.label || "").trim();
+          if (!entry.projectId || !label) return;
+          const key = `${entry.projectId}::${normalizeLabel(label)}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          pairs.push({
+            projectId: entry.projectId,
+            projectName: entry.projectName || (getProject(entry.projectId) && getProject(entry.projectId).name) || "未命名项目",
+            tagId: item.tagId || "",
+            tagLabel: label,
+            createdAt: record.createdAt,
+            slotName: record.slotName || ""
+          });
+        });
+      });
+    });
+
+    return pairs.slice(0, limit);
   }
 
   function getEmotionReferenceCategory(categoryId) {
@@ -6231,7 +6241,7 @@
         projectQuery: "",
         tagQuery: "",
         selectedProjectId: "",
-        selectedTagId: "",
+        selectedTagIds: [],
         note: ""
       },
       guided: newGuidedDraft(),
