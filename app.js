@@ -422,11 +422,6 @@
   }
 
   function renderQuickSomaticSuggestions() {
-    if (!String(ui.quick.somaticQuery || "").trim() && !ui.quick.selectedSomaticIds.length) {
-      els.quickSomaticSuggestions.innerHTML = `<div class="empty-inline"></div>`;
-      return;
-    }
-
     renderTagSuggestionList(els.quickSomaticSuggestions, {
       context: "quick-somatic",
       projectId: "somatic",
