@@ -55,7 +55,7 @@
   const BACKUP_TEXT_START_MARKER = "---- LUMEVA BACKUP DATA START ----";
   const BACKUP_TEXT_END_MARKER = "---- LUMEVA BACKUP DATA END ----";
   const NATIVE_SHADOW_BACKUP_PATH = "backups/app-state-backup.json";
-  const NOTE_MARKERS = [
+  const DEFAULT_NOTE_MARKERS = [
     { id: "doctor", short: "医", label: "想给医生看" },
     { id: "counselor", short: "询", label: "想给咨询师看" }
   ];
@@ -446,9 +446,13 @@
 
   function renderQuickNoteFlags() {
     if (!els.quickNoteFlags) return;
+    const markers = getRecordMarkers();
+    const markerIdSet = new Set(markers.map((item) => item.id));
     const selected = Array.isArray(ui.quick.selectedMarkerIds) ? ui.quick.selectedMarkerIds : [];
-    els.quickNoteFlags.innerHTML = NOTE_MARKERS.map((marker) => {
-      const active = selected.includes(marker.id);
+    ui.quick.selectedMarkerIds = selected.filter((id) => markerIdSet.has(id));
+    const resolvedSelected = ui.quick.selectedMarkerIds;
+    els.quickNoteFlags.innerHTML = markers.map((marker) => {
+      const active = resolvedSelected.includes(marker.id);
       return `
         <button
           type="button"
@@ -1338,7 +1342,7 @@
 
   function getRecentSearchMarkerOptions() {
     const options = [{ id: "", label: "全部标记" }];
-    NOTE_MARKERS.forEach((marker) => {
+    getRecordMarkers().forEach((marker) => {
       options.push({ id: marker.id, label: marker.short });
     });
     if (hasCustomRecordMarkers()) {
@@ -1348,7 +1352,7 @@
   }
 
   function hasCustomRecordMarkers() {
-    const builtins = new Set(NOTE_MARKERS.map((item) => item.id));
+    const builtins = new Set(getRecordMarkers().map((item) => item.id));
     return state.records.some((record) => (record.flags || []).some((flag) => !builtins.has(flag)));
   }
 
@@ -1391,7 +1395,7 @@
     const terms = getRecentSearchTerms();
     const projectId = ui.recentSearch.projectId || "";
     const markerId = ui.recentSearch.markerId || "";
-    const builtins = new Set(NOTE_MARKERS.map((item) => item.id));
+    const builtins = new Set(getRecordMarkers().map((item) => item.id));
 
     return records.filter((record) => {
       if (projectId && !record.projectEntries.some((entry) => entry.projectId === projectId)) {
@@ -1412,7 +1416,7 @@
 
   function buildRecentSearchText(record) {
     const markerLabels = (record.flags || []).map((flag) => {
-      const builtIn = NOTE_MARKERS.find((item) => item.id === flag);
+      const builtIn = getRecordMarkers().find((item) => item.id === flag);
       return builtIn ? `${builtIn.short} ${builtIn.label}` : flag;
     });
     const chunks = [
@@ -1657,6 +1661,7 @@
   function settingsPageMarkup() {
     if (ui.settings.page === "root") return settingsRootMarkup();
     if (ui.settings.page === "appearance") return settingsAppearanceMarkup();
+    if (ui.settings.page === "markers") return settingsMarkersMarkup();
     if (ui.settings.page === "export") return settingsExportMarkup();
     if (ui.settings.page === "library") return settingsLibraryMarkup();
     if (ui.settings.page === "project-detail") return settingsProjectDetailMarkup();
@@ -1667,6 +1672,15 @@
   }
 
   function settingsRootMarkup() {
+    const menuItems = [...DATA.settingsMenu];
+    if (!menuItems.some((item) => item.id === "markers")) {
+      menuItems.splice(2, 0, {
+        id: "markers",
+        title: "记录标记",
+        description: "管理“医/询”等记录标记，可新增自定义标记并用于筛选。"
+      });
+    }
+
     return `
       <div class="card settings-shell">
         <div class="settings-header">
@@ -1675,7 +1689,7 @@
           <p class="body-copy">把复杂功能都收在这里，首页只保留最常用的记录动作。</p>
         </div>
         <div class="settings-list">
-          ${DATA.settingsMenu.map((item) => `
+          ${menuItems.map((item) => `
             <button class="settings-row" type="button" data-settings-open="${item.id}">
               <div class="settings-row-copy">
                 <strong>${escapeHtml(item.title)}</strong>
@@ -1687,6 +1701,53 @@
         </div>
       </div>
     `;
+  }
+
+  function settingsMarkersMarkup() {
+    const markers = getRecordMarkers();
+    const draft = ui.settings.drafts.marker;
+    return settingsShellMarkup({
+      eyebrow: "标记",
+      title: "记录标记",
+      description: "可用于补充说明右上角快速点亮，也可在最近记录里按标记筛选。",
+      backTo: "root",
+      content: `
+        <div class="manager-panel">
+          <p class="settings-note">建议“简称”用 1-2 个字，界面显示会更清晰。</p>
+          <div class="input-grid two-up">
+            <div class="form-block compact-block">
+              <label class="field-label" for="marker-short">简称</label>
+              <input id="marker-short" type="text" maxlength="2" value="${escapeHtml(draft.short)}" placeholder="如：医">
+            </div>
+            <div class="form-block compact-block">
+              <label class="field-label" for="marker-label">说明</label>
+              <input id="marker-label" type="text" maxlength="24" value="${escapeHtml(draft.label)}" placeholder="如：想给医生看">
+            </div>
+          </div>
+          <div class="button-row">
+            <button class="secondary-button" type="button" data-settings-action="add-marker">新增标记</button>
+            <button class="ghost-button" type="button" data-settings-action="reset-markers">恢复默认</button>
+          </div>
+        </div>
+        <div class="manager-list">
+          ${markers.map((marker) => `
+            <div class="manager-row">
+              <div class="manager-copy">
+                <strong>${escapeHtml(marker.short)} · ${escapeHtml(marker.label)}</strong>
+              </div>
+              <div class="manager-actions">
+                <button
+                  class="ghost-button"
+                  type="button"
+                  data-settings-action="delete-marker"
+                  data-marker-id="${marker.id}"
+                >删除</button>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `
+    });
   }
 
   function settingsAppearanceMarkup() {
@@ -3634,6 +3695,21 @@
       return;
     }
 
+    if (action === "add-marker") {
+      addRecordMarkerFromSettings();
+      return;
+    }
+
+    if (action === "delete-marker") {
+      deleteRecordMarkerFromSettings(actionButton.dataset.markerId);
+      return;
+    }
+
+    if (action === "reset-markers") {
+      resetRecordMarkersFromSettings();
+      return;
+    }
+
     if (action === "add-library-tag") {
       addLibraryTag(actionButton.dataset.projectId);
       return;
@@ -3755,6 +3831,16 @@
 
     if (target.id === "new-project-name") {
       ui.settings.drafts.newProject.name = target.value;
+      return;
+    }
+
+    if (target.id === "marker-short") {
+      ui.settings.drafts.marker.short = target.value;
+      return;
+    }
+
+    if (target.id === "marker-label") {
+      ui.settings.drafts.marker.label = target.value;
       return;
     }
 
@@ -4422,6 +4508,72 @@
     };
     renderApp();
     toast("项目标签已添加");
+  }
+
+  function addRecordMarkerFromSettings() {
+    const short = sanitizeMarkerShort(ui.settings.drafts.marker.short);
+    const label = String(ui.settings.drafts.marker.label || "").trim();
+    if (!short) {
+      toast("先填写标记简称。");
+      return;
+    }
+    if (!label) {
+      toast("先填写标记说明。");
+      return;
+    }
+
+    const markers = getRecordMarkers();
+    const duplicate = markers.find((item) => (
+      normalizeLabel(item.short) === normalizeLabel(short)
+      || normalizeLabel(item.label) === normalizeLabel(label)
+    ));
+    if (duplicate) {
+      toast("已存在相同标记，请换一个。");
+      return;
+    }
+
+    state.settings.recordMarkers = normalizeRecordMarkers([
+      ...markers,
+      {
+        id: createId("marker"),
+        short,
+        label
+      }
+    ]);
+    ui.settings.drafts.marker = { short: "", label: "" };
+    saveState();
+    renderApp();
+    toast("标记已添加。");
+  }
+
+  function deleteRecordMarkerFromSettings(markerId) {
+    const markers = getRecordMarkers();
+    if (markers.length <= 1) {
+      toast("至少保留 1 个标记。");
+      return;
+    }
+    state.settings.recordMarkers = markers.filter((item) => item.id !== markerId);
+    state.records.forEach((record) => {
+      if (!Array.isArray(record.flags)) return;
+      record.flags = record.flags.filter((flag) => flag !== markerId);
+    });
+    ui.quick.selectedMarkerIds = (ui.quick.selectedMarkerIds || []).filter((id) => id !== markerId);
+    if (ui.recentSearch.markerId === markerId) {
+      ui.recentSearch.markerId = "";
+    }
+    saveState();
+    renderApp();
+    toast("标记已删除。");
+  }
+
+  function resetRecordMarkersFromSettings() {
+    state.settings.recordMarkers = normalizeRecordMarkers(DEFAULT_NOTE_MARKERS);
+    ui.quick.selectedMarkerIds = [];
+    ui.recentSearch.markerId = "";
+    ui.settings.drafts.marker = { short: "", label: "" };
+    saveState();
+    renderApp();
+    toast("已恢复默认标记。");
   }
 
   function deleteProject(projectId) {
@@ -6030,7 +6182,8 @@
       settings: {
         activeSlotTemplateId: DATA.slotTemplate.id,
         themeMode: "auto",
-        reminders: deepCopy(DEFAULT_REMINDERS)
+        reminders: deepCopy(DEFAULT_REMINDERS),
+        recordMarkers: deepCopy(DEFAULT_NOTE_MARKERS)
       },
       projects: deepCopy(BUILTIN_PROJECTS),
       records: []
@@ -6076,11 +6229,37 @@
             ...(incomingReminders.times || {})
           },
           lastNotified: incomingReminders.lastNotified || {}
-        }
+        },
+        recordMarkers: normalizeRecordMarkers(incomingSettings.recordMarkers || [])
       },
       projects: mergedProjects,
       records
     };
+  }
+
+  function normalizeRecordMarkers(markers) {
+    const source = Array.isArray(markers) && markers.length ? markers : DEFAULT_NOTE_MARKERS;
+    const result = [];
+    const seen = new Set();
+    source.forEach((item) => {
+      const short = sanitizeMarkerShort(item && item.short);
+      const label = String((item && item.label) || "").trim();
+      if (!short || !label) return;
+      const id = String((item && item.id) || createId("marker")).trim();
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      result.push({ id, short, label });
+    });
+    return result.length ? result : deepCopy(DEFAULT_NOTE_MARKERS);
+  }
+
+  function sanitizeMarkerShort(value) {
+    return String(value || "").replace(/\s+/g, "").trim().slice(0, 2);
+  }
+
+  function getRecordMarkers() {
+    state.settings.recordMarkers = normalizeRecordMarkers(state.settings.recordMarkers || []);
+    return state.settings.recordMarkers;
   }
 
   function sanitizeCustomProject(project) {
@@ -6351,6 +6530,10 @@
       newProject: {
         name: "",
         color: "#4f8f8b"
+      },
+      marker: {
+        short: "",
+        label: ""
       },
       projectTags: {},
       projectDetails: {}
