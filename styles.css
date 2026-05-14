@@ -1425,9 +1425,9 @@ p {
   background: rgba(255, 255, 255, 0.72);
   color: var(--muted);
   border-radius: 999px;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 10px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1440,7 +1440,7 @@ p {
 
 .note-flag-chip.is-active {
   background: rgba(213, 120, 84, 0.2);
-  color: var(--ink);
+  color: var(--muted);
   border-color: rgba(213, 120, 84, 0.5);
 }
 
@@ -1647,6 +1647,35 @@ p {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.55;
+}
+
+.marker-row {
+  align-items: center;
+}
+
+.marker-row-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.marker-row-copy strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marker-row-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 10px;
+}
+
+.marker-row-actions .ghost-button,
+.marker-row-actions .danger-button {
+  min-width: 82px;
+  white-space: nowrap;
 }
 
 .switch-row {

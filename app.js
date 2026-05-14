@@ -1733,7 +1733,7 @@
         </div>
         <div class="manager-list">
           ${markers.map((marker) => `
-            <div class="manager-row">
+            <div class="manager-row marker-row">
               ${editingId === marker.id ? `
                 <div class="manager-copy" style="width:100%;">
                   <div class="input-grid two-up">
@@ -1758,10 +1758,10 @@
                   </div>
                 </div>
               ` : `
-                <div class="manager-copy">
+                <div class="manager-copy marker-row-copy">
                   <strong>${escapeHtml(marker.short)} · ${escapeHtml(marker.label)}</strong>
                 </div>
-                <div class="manager-actions">
+                <div class="manager-actions marker-row-actions">
                   <button
                     class="ghost-button"
                     type="button"
